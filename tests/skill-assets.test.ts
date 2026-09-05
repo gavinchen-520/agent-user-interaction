@@ -30,6 +30,7 @@ describe("html-interaction skill assets", () => {
     expect(skill).toMatch(/network|网络/i);
     expect(skill).toMatch(/filesystem|文件系统/i);
     expect(skill).toMatch(/OpenCode/i);
+    expect(skill).toMatch(/visual|视觉|complex|复杂|form|表单|multi-step|多步骤/i);
   });
 
   it("documents protocol, security restrictions, and complete examples", async () => {
@@ -49,7 +50,12 @@ describe("html-interaction skill assets", () => {
     expect(security).toMatch(/sandbox/i);
     expect(security).toMatch(/CSP/i);
     expect(security).toMatch(/filesystem|文件系统/i);
+    expect(security).toMatch(/connect-src[^\n]*none|connect-src.*none/i);
+    expect(security).toMatch(/same-origin|同源/i);
     expect(examples).toContain("submitToAgent({ kind, data, metadata })");
+    expect(examples).toContain("assets/submit-bridge.js");
+    expect(examples).not.toMatch(/function\s+submitToAgent/);
+    expect(examples).not.toContain("window.parent.postMessage");
     expect((examples.match(/submitToAgent\(/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 
@@ -66,27 +72,49 @@ describe("html-interaction skill assets", () => {
     expect(bridge).not.toMatch(/claude/i);
   });
 
-  it("validates bridge input and returns a boolean", async () => {
+  it("sends JSON-compatible data through the executed bridge", async () => {
     const bridge = await readAsset(bridgePath);
-    const messages: unknown[] = [];
-    const windowObject: {
-      parent: { postMessage: (message: unknown) => void };
-      submitToAgent?: (payload: unknown) => boolean;
-    } = {
-      parent: {
-        postMessage: (message: unknown) => messages.push(message),
-      },
-    };
-    const evaluator = new Function("window", bridge);
-    evaluator(windowObject);
-    if (!windowObject.submitToAgent) throw new Error("bridge 未暴露 submitToAgent");
-    const submitToAgent = windowObject.submitToAgent;
+    const { submitToAgent, messages } = executeBridge(bridge);
 
-    expect(submitToAgent({ kind: "confirm", data: { ok: true }, metadata: { source: "page" } })).toBe(true);
-    expect(submitToAgent({ kind: "", data: {}, metadata: {} })).toBe(false);
+    expect(submitToAgent({ kind: "confirm", data: { ok: true, nested: [1, "two"] }, metadata: { source: "page" } })).toBe(true);
     expect(messages).toEqual([{
       type: "html-submit",
-      payload: { kind: "confirm", data: { ok: true }, metadata: { source: "page" } },
+      payload: { kind: "confirm", data: { ok: true, nested: [1, "two"] }, metadata: { source: "page" } },
     }]);
   });
+
+  it("rejects invalid bridge input without sending messages", async () => {
+    const bridge = await readAsset(bridgePath);
+    const { submitToAgent, messages } = executeBridge(bridge);
+    const circularData: { self?: unknown } = {};
+    circularData.self = circularData;
+
+    expect(submitToAgent({ kind: "", data: {}, metadata: {} })).toBe(false);
+    expect(submitToAgent({ kind: "valid", data: circularData, metadata: {} })).toBe(false);
+    expect(submitToAgent({ kind: "valid", data: { value: Number.POSITIVE_INFINITY }, metadata: {} })).toBe(false);
+    expect(submitToAgent({ kind: "valid", data: {}, metadata: { value: "x".repeat(64 * 1024) } })).toBe(false);
+    expect(submitToAgent(null)).toBe(false);
+    expect(submitToAgent({ kind: "valid", data: undefined, metadata: {} })).toBe(false);
+    expect(submitToAgent({ kind: "valid", data: {}, metadata: undefined })).toBe(false);
+    expect(messages).toHaveLength(0);
+  });
 });
+
+const executeBridge = (bridge: string): {
+  submitToAgent: (payload: unknown) => boolean;
+  messages: unknown[];
+} => {
+  const messages: unknown[] = [];
+  const windowObject: {
+    parent: { postMessage: (message: unknown) => void };
+    submitToAgent?: (payload: unknown) => boolean;
+  } = {
+    parent: {
+      postMessage: (message: unknown) => messages.push(message),
+    },
+  };
+  const evaluator = new Function("window", bridge);
+  evaluator(windowObject);
+  if (!windowObject.submitToAgent) throw new Error("bridge 未暴露 submitToAgent");
+  return { submitToAgent: windowObject.submitToAgent, messages };
+};

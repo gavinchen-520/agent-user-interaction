@@ -12,12 +12,8 @@
       <button id="submit" type="button">确认</button>
       <output id="status" aria-live="polite"></output>
     </main>
+    <script src="assets/submit-bridge.js"></script>
     <script>
-      // 此脚本内容应来自本地的 submit-bridge.js。
-      function submitToAgent(payload) {
-        window.parent.postMessage({ type: "html-submit", payload: payload }, "*");
-        return true;
-      }
       const button = document.querySelector("#submit");
       button.addEventListener("click", () => {
         button.disabled = true;
