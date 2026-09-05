@@ -25,6 +25,7 @@ import type {
 
 export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => {
   const sessions = new Map<string, RuntimeSession>();
+  const sessionOutputs = new Map<string, CreateSessionOutput>();
   const waiters = createWaiterRegistry<string, SubmissionOutput>();
   const maxPayloadBytes = options.maxPayloadBytes ?? defaultMaxPayloadBytes;
   const timeoutMs = options.defaultTimeoutMs ?? defaultTimeoutMs;
@@ -72,7 +73,9 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
       updatedAt: now,
     };
     sessions.set(sessionId, session);
-    return { sessionId, pageId, pageVersion: 1, url: `${baseUrl}/session/${sessionId}` };
+    const output = { sessionId, pageId, pageVersion: 1, url: `${baseUrl}/session/${sessionId}` };
+    sessionOutputs.set(sessionId, output);
+    return output;
   };
 
   const openSession = (sessionId: string): RuntimeSession => {
@@ -165,6 +168,9 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     processSession,
     submitSubmission,
     listSessions: () => [...sessions.values()],
-    setBaseUrl: (value) => { baseUrl = value.replace(/\/$/, ""); },
+    setBaseUrl: (value) => {
+      baseUrl = value.replace(/\/$/, "");
+      sessionOutputs.forEach((output) => { output.url = `${baseUrl}/session/${output.sessionId}`; });
+    },
   };
 };

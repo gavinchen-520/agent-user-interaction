@@ -52,6 +52,17 @@ describe("安全 HTML runtime server", () => {
     expect((await fetch(server.url)).status).toBe(200);
   });
 
+  it("server 启动后会回写已创建 session 的 URL", async () => {
+    const runtime = createHtmlRuntime({ openBrowser: false });
+    const created = await runtime.createSession({ html: "<h1>before server</h1>" });
+    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    servers.push(server);
+
+    const parsedUrl = new URL(created.url);
+    expect(parsedUrl.port).toBe(new URL(server.url).port);
+    expect((await fetch(created.url)).status).toBe(200);
+  });
+
   it("拒绝缺少 token、错误 JSON、旧页面和超大 body", async () => {
     const runtime = createHtmlRuntime({ openBrowser: false });
     const created = await runtime.createSession({ html: "<p>page</p>" });
@@ -64,6 +75,9 @@ describe("安全 HTML runtime server", () => {
     await expect(fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(envelope) })).resolves.toMatchObject({ status: 401 });
     await expect(fetch(endpoint, { method: "POST", headers: { ...headers, "x-runtime-token": "wrong" }, body: JSON.stringify(envelope) })).resolves.toMatchObject({ status: 401 });
     await expect(fetch(endpoint, { method: "POST", headers, body: "{" })).resolves.toMatchObject({ status: 400 });
+    const malformedEnvelope = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify({ kind: "missing-session" }) });
+    expect(malformedEnvelope.status).toBe(400);
+    expect(await malformedEnvelope.json()).toMatchObject({ code: "INVALID_ENVELOPE", context: "submit", action: expect.any(String) });
     await expect(fetch(endpoint, { method: "POST", headers, body: "x".repeat(1_001) })).resolves.toMatchObject({ status: 413 });
     await expect(fetch(endpoint, { method: "POST", headers, body: JSON.stringify({ ...envelope, pageVersion: 2 }) })).resolves.toMatchObject({ status: 409 });
   });
