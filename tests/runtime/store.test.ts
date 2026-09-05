@@ -137,4 +137,81 @@ describe("HTML session runtime", () => {
     expect(await runtime.endSession(created.sessionId)).toEqual({ ok: false });
     expect(updated.pageVersion).toBe(2);
   });
+
+  it("wait 超时后的提交会被缓存，下次 wait 立即返回缓存数据", async () => {
+    const runtime = createHtmlRuntime();
+    const created = await runtime.createSession({ html: "<h1>late</h1>" });
+    await expect(
+      runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1 }),
+    ).rejects.toThrow(expect.objectContaining({ code: "WAIT_TIMEOUT" }));
+
+    // 无 waiter 时提交：仍占用本版本唯一提交名额，不产生数据丢失
+    await expect(
+      runtime.submitSubmission({
+        sessionId: created.sessionId,
+        pageId: created.pageId,
+        pageVersion: created.pageVersion,
+        kind: "late-submission",
+        data: { value: "kept" },
+        metadata: {},
+        protocolVersion: 1,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+
+    const output = await runtime.waitSubmission({
+      sessionId: created.sessionId,
+      timeoutMs: 30_000,
+    });
+    expect(output).toMatchObject({
+      kind: "late-submission",
+      data: { value: "kept" },
+      pageVersion: 1,
+    });
+
+    // 缓存消费完毕后，同一页面的再次等待属于重复提交
+    await expect(
+      runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1 }),
+    ).rejects.toThrow(expect.objectContaining({ code: "DUPLICATE_SUBMISSION" }));
+  });
+
+  it("页面更新会清除未消费的缓存提交", async () => {
+    const runtime = createHtmlRuntime();
+    const created = await runtime.createSession({ html: "<h1>v1</h1>" });
+    await expect(
+      runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1 }),
+    ).rejects.toThrow(expect.objectContaining({ code: "WAIT_TIMEOUT" }));
+    await runtime.submitSubmission({
+      sessionId: created.sessionId,
+      pageId: created.pageId,
+      pageVersion: created.pageVersion,
+      kind: "cached",
+      data: {},
+      metadata: {},
+      protocolVersion: 1,
+    });
+
+    const updated = await runtime.updateSession({
+      sessionId: created.sessionId,
+      html: "<h1>v2</h1>",
+    });
+
+    await expect(
+      runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1 }),
+    ).rejects.toThrow(expect.objectContaining({ code: "WAIT_TIMEOUT" }));
+    expect(updated.pageVersion).toBe(2);
+  });
+
+  it("endSession 后从 session 表删除条目并收缩 map", async () => {
+    const runtime = createHtmlRuntime();
+    const first = await runtime.createSession({ html: "<h1>a</h1>" });
+    const second = await runtime.createSession({ html: "<h1>b</h1>" });
+    expect(runtime.listSessions()).toHaveLength(2);
+
+    expect(await runtime.endSession(first.sessionId)).toEqual({ ok: true });
+    expect(runtime.getSession(first.sessionId)).toBeUndefined();
+    expect(runtime.listSessions()).toHaveLength(1);
+    expect(runtime.listSessions()[0]?.sessionId).toBe(second.sessionId);
+
+    expect(await runtime.endSession(first.sessionId)).toEqual({ ok: false });
+  });
 });

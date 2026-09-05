@@ -97,6 +97,12 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
 
   const waitSubmission = async (input: WaitSubmissionInput): Promise<SubmissionOutput> => {
     const session = getRequiredSession(input.sessionId);
+    // 超时后到达的缓存提交：立即返回，避免数据被静默丢弃
+    if (session.pendingSubmission) {
+      const cached = session.pendingSubmission;
+      session.pendingSubmission = undefined;
+      return cached;
+    }
     if (session.submittedPageVersion === session.pageVersion) {
       throw createRuntimeError("DUPLICATE_SUBMISSION", "当前页面已提交", 409, "等待新页面");
     }
@@ -133,11 +139,13 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
       metadata: submission.metadata,
       pageVersion: submission.pageVersion,
     };
-    waiters.notifyFirstAndClear(
+    // 无 waiter 时缓存提交，下次 waitSubmission 立即返回；仍占用本版本唯一提交名额
+    const notified = waiters.notifyFirstAndClear(
       session.sessionId,
       output,
       createRuntimeError("DUPLICATE_SUBMISSION", "当前页面已提交", 409, "等待新页面"),
     );
+    if (!notified) session.pendingSubmission = output;
     processSession(session.sessionId);
     return { ok: true as const, submission };
   };
@@ -157,6 +165,7 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     session.html = input.html;
     session.state = input.state;
     session.submittedPageVersion = undefined;
+    session.pendingSubmission = undefined;
     session.status = "waiting";
     session.updatedAt = Date.now();
     return { pageId: session.pageId, pageVersion: session.pageVersion };
@@ -171,6 +180,9 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
       sessionId,
       createRuntimeError("SESSION_ENDED", "session 已结束", 410, "session 已结束"),
     );
+    // 结束即删除条目，避免 session 表随时间增长并防止旧 token 残留
+    sessions.delete(sessionId);
+    sessionOutputs.delete(sessionId);
     return { ok: true };
   };
 

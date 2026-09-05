@@ -88,6 +88,8 @@ export type RuntimeSession = {
   createdAt: number;
   updatedAt: number;
   submittedPageVersion?: number;
+  // 无 waiter 时到达的提交缓存，供下一次 waitSubmission 立即消费
+  pendingSubmission?: SubmissionOutput;
 };
 
 export type RuntimeOptions = {
