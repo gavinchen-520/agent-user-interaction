@@ -102,7 +102,7 @@ window.addEventListener("message", async (event) => {
     const response = await fetch(config.submitUrl, { method: "POST", headers: { "content-type": "application/json", "x-runtime-token": config.token }, body });
     if (!response.ok) throw new Error("submit failed");
     status.textContent = "已提交";
-  } catch { status.textContent = "提交失败，请重试当前页面"; }
+  } catch { status.textContent = "提交失败，请刷新页面"; }
 });
 </script></body></html>`;
 };

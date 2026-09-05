@@ -106,4 +106,6 @@ export type HtmlRuntime = {
   openSession(sessionId: string): RuntimeSession;
   processSession(sessionId: string): RuntimeSession;
   submitSubmission(value: unknown): Promise<{ ok: true; submission: SubmissionEnvelope }>;
+  listSessions(): RuntimeSession[];
+  setBaseUrl(baseUrl: string): void;
 };

@@ -29,7 +29,7 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
   const maxPayloadBytes = options.maxPayloadBytes ?? defaultMaxPayloadBytes;
   const timeoutMs = options.defaultTimeoutMs ?? defaultTimeoutMs;
   const sessionTtlMs = options.sessionTtlMs ?? defaultSessionTtlMs;
-  const baseUrl = options.baseUrl ?? "http://127.0.0.1:0";
+  let baseUrl = options.baseUrl ?? "http://127.0.0.1:0";
   const makeId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
   const getRequiredSession = (sessionId: string) => {
     const session = sessions.get(sessionId);
@@ -164,5 +164,7 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     openSession,
     processSession,
     submitSubmission,
+    listSessions: () => [...sessions.values()],
+    setBaseUrl: (value) => { baseUrl = value.replace(/\/$/, ""); },
   };
 };

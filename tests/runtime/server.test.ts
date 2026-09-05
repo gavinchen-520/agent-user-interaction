@@ -19,10 +19,18 @@ describe("安全 HTML runtime server", () => {
     const wrapper = await fetch(`${server.url}/session/${created.sessionId}`);
     expect(wrapper.status).toBe(200);
     expect(await wrapper.text()).toContain('sandbox="allow-scripts"');
+    expect(wrapper.headers.get("content-security-policy")).toContain("connect-src 'self'");
+
+    const root = await fetch(server.url);
+    expect(root.status).toBe(200);
 
     const page = await fetch(`${server.url}/session/${created.sessionId}/page`);
     expect(page.status).toBe(200);
-    expect(await page.text()).toBe("<h1>safe</h1>");
+    const pageText = await page.text();
+    expect(pageText).toBe("<h1>safe</h1>");
+    expect(pageText).not.toContain(runtime.getSession(created.sessionId)?.token ?? "");
+    expect(page.headers.get("content-security-policy")).toContain("connect-src 'none'");
+    expect(page.headers.get("content-security-policy")).toContain("script-src 'unsafe-inline'");
 
     const waiting = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 500 });
     const response = await fetch(`${server.url}/session/${created.sessionId}/submit`, {
@@ -32,6 +40,16 @@ describe("安全 HTML runtime server", () => {
     });
     expect(response.status).toBe(200);
     await expect(waiting).resolves.toMatchObject({ kind: "confirm", pageVersion: 1 });
+  });
+
+  it("server 启动后创建 session 会返回可直接打开的 wrapper URL", async () => {
+    const runtime = createHtmlRuntime({ openBrowser: false });
+    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    servers.push(server);
+    const created = await runtime.createSession({ html: "<h1>after server</h1>" });
+
+    expect(created.url).toBe(`${server.url}/session/${created.sessionId}`);
+    expect((await fetch(server.url)).status).toBe(200);
   });
 
   it("拒绝缺少 token、错误 JSON、旧页面和超大 body", async () => {
@@ -48,5 +66,51 @@ describe("安全 HTML runtime server", () => {
     await expect(fetch(endpoint, { method: "POST", headers, body: "{" })).resolves.toMatchObject({ status: 400 });
     await expect(fetch(endpoint, { method: "POST", headers, body: "x".repeat(1_001) })).resolves.toMatchObject({ status: 413 });
     await expect(fetch(endpoint, { method: "POST", headers, body: JSON.stringify({ ...envelope, pageVersion: 2 }) })).resolves.toMatchObject({ status: 409 });
+  });
+
+  it("为所有路由错误返回稳定 JSON envelope，并校验 authority 和 session/page", async () => {
+    const runtime = createHtmlRuntime({ openBrowser: false });
+    const created = await runtime.createSession({ html: "<p>page</p>" });
+    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    servers.push(server);
+    const endpoint = `${server.url}/session/${created.sessionId}/submit`;
+    const getError = async (url: string, init?: RequestInit) => {
+      const response = await fetch(url, init);
+      return { status: response.status, body: await response.json() as { code: string; context: string; action: string } };
+    };
+    const validHeaders = { "content-type": "application/json", "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "" };
+    const envelope = { sessionId: created.sessionId, pageId: created.pageId, pageVersion: 1, kind: "ok", data: {}, metadata: {}, protocolVersion: 1 };
+
+    await expect(getError(`${server.url}/missing`)).resolves.toMatchObject({ status: 404, body: { code: "ROUTE_NOT_FOUND", context: "route" } });
+    await expect(getError(endpoint, { method: "GET" })).resolves.toMatchObject({ status: 405, body: { code: "METHOD_NOT_ALLOWED", context: "submit", action: expect.any(String) } });
+    await expect(getError(endpoint, { method: "POST", headers: { ...validHeaders, host: "127.0.0.1:1" }, body: JSON.stringify(envelope) })).resolves.toMatchObject({ status: 403, body: { code: "INVALID_AUTHORITY" } });
+    await expect(getError(endpoint, { method: "POST", headers: { ...validHeaders, origin: "http://localhost:1234" }, body: JSON.stringify(envelope) })).resolves.toMatchObject({ status: 403, body: { code: "INVALID_AUTHORITY" } });
+    await expect(getError(`${server.url}/session/unknown/page`)).resolves.toMatchObject({ status: 404, body: { code: "SESSION_NOT_FOUND" } });
+    await expect(getError(endpoint, { method: "POST", headers: validHeaders, body: JSON.stringify({ ...envelope, pageId: "old" }) })).resolves.toMatchObject({ status: 409, body: { code: "STALE_PAGE" } });
+  });
+
+  it("重复提交只接受一次并返回稳定错误", async () => {
+    const runtime = createHtmlRuntime({ openBrowser: false });
+    const created = await runtime.createSession({ html: "<p>page</p>" });
+    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    servers.push(server);
+    const endpoint = `${server.url}/session/${created.sessionId}/submit`;
+    const headers = { "content-type": "application/json", "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "" };
+    const body = JSON.stringify({ sessionId: created.sessionId, pageId: created.pageId, pageVersion: 1, kind: "ok", data: {}, metadata: {}, protocolVersion: 1 });
+    await expect(fetch(endpoint, { method: "POST", headers, body })).resolves.toMatchObject({ status: 200 });
+    const duplicate = await fetch(endpoint, { method: "POST", headers, body });
+    expect(duplicate.status).toBe(409);
+    expect(await duplicate.json()).toMatchObject({ code: "DUPLICATE_SUBMISSION", context: "submit" });
+  });
+
+  it("浏览器打开失败时停止 server", async () => {
+    const runtime = createHtmlRuntime({ openBrowser: false });
+    await runtime.createSession({ html: "<p>page</p>" });
+    let openedUrl = "";
+    await expect(createRuntimeServer(runtime, {
+      openBrowser: async (url) => { openedUrl = url; throw new Error("browser unavailable"); },
+    })).rejects.toThrow("browser unavailable");
+    expect(openedUrl).toStartWith("http://127.0.0.1:");
+    await expect(fetch(openedUrl)).rejects.toThrow();
   });
 });
