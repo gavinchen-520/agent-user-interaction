@@ -52,18 +52,20 @@ export const createWrapperMessageHandler = (options: WrapperHandlerOptions) => {
     } catch {
       return;
     }
-    if (new TextEncoder().encode(serialized).byteLength > (options.maxMessageBytes ?? 64 * 1024)) return;
+    if (new TextEncoder().encode(serialized).byteLength > (options.maxMessageBytes ?? 64 * 1024))
+      return;
     submitted = true;
     await options.submit(message.payload);
   };
 };
 
-const escapeHtml = (value: string): string => value
-  .replaceAll("&", "&amp;")
-  .replaceAll("<", "&lt;")
-  .replaceAll(">", "&gt;")
-  .replaceAll('"', "&quot;")
-  .replaceAll("'", "&#39;");
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 
 export const buildWrapperHtml = (input: WrapperInput): string => {
   const config = JSON.stringify({

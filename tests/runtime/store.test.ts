@@ -47,7 +47,10 @@ describe("HTML session runtime", () => {
     const runtime = createHtmlRuntime({ openBrowser: false });
     const created = await runtime.createSession({ html: "<h1>cancel</h1>" });
     const controller = new AbortController();
-    const pending = runtime.waitSubmission({ sessionId: created.sessionId, signal: controller.signal });
+    const pending = runtime.waitSubmission({
+      sessionId: created.sessionId,
+      signal: controller.signal,
+    });
     controller.abort();
     await expect(pending).rejects.toThrow(expect.objectContaining({ code: "WAIT_CANCELLED" }));
     const next = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1 });
@@ -75,23 +78,33 @@ describe("HTML session runtime", () => {
   it("拒绝不可序列化 session state，但接受共享普通对象", async () => {
     const runtime = createHtmlRuntime({ openBrowser: false });
     const shared = { value: "same" };
-    const created = await runtime.createSession({ html: "<h1>state</h1>", initialState: { first: shared, second: shared } });
+    const created = await runtime.createSession({
+      html: "<h1>state</h1>",
+      initialState: { first: shared, second: shared },
+    });
     expect(runtime.getSession(created.sessionId)?.state).toEqual({ first: shared, second: shared });
     const cyclic: { self?: unknown } = {};
     cyclic.self = cyclic;
-    await expect(runtime.createSession({ html: "<h1>bad</h1>", initialState: cyclic })).rejects.toThrow(
-      expect.objectContaining({ code: "INVALID_ENVELOPE" }),
-    );
-    await expect(runtime.updateSession({ sessionId: created.sessionId, html: "<h1>bad</h1>", state: BigInt(1) })).rejects.toThrow(
-      expect.objectContaining({ code: "INVALID_ENVELOPE" }),
-    );
+    await expect(
+      runtime.createSession({ html: "<h1>bad</h1>", initialState: cyclic }),
+    ).rejects.toThrow(expect.objectContaining({ code: "INVALID_ENVELOPE" }));
+    await expect(
+      runtime.updateSession({
+        sessionId: created.sessionId,
+        html: "<h1>bad</h1>",
+        state: BigInt(1),
+      }),
+    ).rejects.toThrow(expect.objectContaining({ code: "INVALID_ENVELOPE" }));
   });
 
   it("更新和结束会清理旧 waiter", async () => {
     const runtime = createHtmlRuntime({ openBrowser: false });
     const created = await runtime.createSession({ html: "<h1>old</h1>" });
     const oldWaiter = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1000 });
-    const updated = await runtime.updateSession({ sessionId: created.sessionId, html: "<h1>new</h1>" });
+    const updated = await runtime.updateSession({
+      sessionId: created.sessionId,
+      html: "<h1>new</h1>",
+    });
     await expect(oldWaiter).rejects.toThrow(expect.objectContaining({ code: "STALE_PAGE" }));
     const endedWaiter = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1000 });
     await runtime.endSession(created.sessionId);
@@ -102,19 +115,24 @@ describe("HTML session runtime", () => {
   it("拒绝旧页面提交，超时返回 WAIT_TIMEOUT，结束操作幂等", async () => {
     const runtime = createHtmlRuntime({ openBrowser: false });
     const created = await runtime.createSession({ html: "<h1>one</h1>" });
-    const updated = await runtime.updateSession({ sessionId: created.sessionId, html: "<h1>two</h1>" });
-    await expect(runtime.submitSubmission({
+    const updated = await runtime.updateSession({
       sessionId: created.sessionId,
-      pageId: created.pageId,
-      pageVersion: created.pageVersion,
-      kind: "stale",
-      data: null,
-      metadata: null,
-      protocolVersion: 1,
-    })).rejects.toThrow(expect.objectContaining({ code: "STALE_PAGE" }));
-    await expect(runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1 })).rejects.toThrow(
-      expect.objectContaining({ code: "WAIT_TIMEOUT" }),
-    );
+      html: "<h1>two</h1>",
+    });
+    await expect(
+      runtime.submitSubmission({
+        sessionId: created.sessionId,
+        pageId: created.pageId,
+        pageVersion: created.pageVersion,
+        kind: "stale",
+        data: null,
+        metadata: null,
+        protocolVersion: 1,
+      }),
+    ).rejects.toThrow(expect.objectContaining({ code: "STALE_PAGE" }));
+    await expect(
+      runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1 }),
+    ).rejects.toThrow(expect.objectContaining({ code: "WAIT_TIMEOUT" }));
     expect(await runtime.endSession(created.sessionId)).toEqual({ ok: true });
     expect(await runtime.endSession(created.sessionId)).toEqual({ ok: false });
     expect(updated.pageVersion).toBe(2);

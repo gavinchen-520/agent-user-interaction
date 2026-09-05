@@ -9,11 +9,13 @@
     "test:e2e": "bunx playwright test",
     "typecheck": "bun run --cwd opencode-plugin typecheck",
     "build": "bun run --cwd opencode-plugin build",
-    "check": "bun run typecheck && bun run test"
+    "format": "biome format --write .",
+    "check": "bun run typecheck && biome check . && bun run test"
   },
   "devDependencies": {
-    "@playwright/test": "latest",
-    "bun-types": "latest",
+    "@biomejs/biome": "^2.3.10",
+    "@playwright/test": "1.63.0",
+    "bun-types": "1.4.1",
     "typescript": "^6.0.2"
   }
 }

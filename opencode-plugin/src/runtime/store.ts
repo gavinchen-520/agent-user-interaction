@@ -1,14 +1,5 @@
-import {
-  defaultMaxPayloadBytes,
-  defaultSessionTtlMs,
-  defaultTimeoutMs,
-} from "./constants";
-import {
-  createRuntimeError,
-  isJsonSerializable,
-  parseSubmissionWithLimit,
-} from "./protocol";
-import { createWaiterRegistry } from "./waiter";
+import { defaultMaxPayloadBytes, defaultSessionTtlMs, defaultTimeoutMs } from "./constants";
+import { createRuntimeError, isJsonSerializable, parseSubmissionWithLimit } from "./protocol";
 import type {
   CreateSessionInput,
   CreateSessionOutput,
@@ -16,12 +7,12 @@ import type {
   HtmlRuntime,
   RuntimeOptions,
   RuntimeSession,
-  SubmissionEnvelope,
   SubmissionOutput,
   UpdateSessionInput,
   UpdateSessionOutput,
   WaitSubmissionInput,
 } from "./types";
+import { createWaiterRegistry } from "./waiter";
 
 export const terminalStatuses = ["ended", "expired", "failed", "cancelled"] as const;
 
@@ -39,13 +30,17 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
   const makeId = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
   const getRequiredSession = (sessionId: string) => {
     const session = sessions.get(sessionId);
-    if (!session) throw createRuntimeError("SESSION_NOT_FOUND", "session 不存在", 404, "检查 sessionId");
+    if (!session)
+      throw createRuntimeError("SESSION_NOT_FOUND", "session 不存在", 404, "检查 sessionId");
     if (isTerminalStatus(session.status)) {
       throw createRuntimeError("SESSION_ENDED", "session 已结束", 410, "创建或使用新的 session");
     }
     if (Date.now() - session.createdAt > sessionTtlMs) {
       session.status = "expired";
-      waiters.clear(sessionId, createRuntimeError("SESSION_ENDED", "session 已过期", 410, "创建新的 session"));
+      waiters.clear(
+        sessionId,
+        createRuntimeError("SESSION_ENDED", "session 已过期", 410, "创建新的 session"),
+      );
       throw createRuntimeError("SESSION_ENDED", "session 已过期", 410, "创建新的 session");
     }
     return session;
@@ -53,7 +48,12 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
 
   const validateState = (state: unknown) => {
     if (state !== undefined && !isJsonSerializable(state)) {
-      throw createRuntimeError("INVALID_ENVELOPE", "session state 必须是 JSON 数据", 400, "移除不可序列化值");
+      throw createRuntimeError(
+        "INVALID_ENVELOPE",
+        "session state 必须是 JSON 数据",
+        400,
+        "移除不可序列化值",
+      );
     }
   };
 
@@ -127,7 +127,12 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     session.submittedPageVersion = session.pageVersion;
     session.status = "submitted";
     session.updatedAt = Date.now();
-    const output = { kind: submission.kind, data: submission.data, metadata: submission.metadata, pageVersion: submission.pageVersion };
+    const output = {
+      kind: submission.kind,
+      data: submission.data,
+      metadata: submission.metadata,
+      pageVersion: submission.pageVersion,
+    };
     waiters.notifyFirstAndClear(
       session.sessionId,
       output,
@@ -143,7 +148,10 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
       throw createRuntimeError("INVALID_ENVELOPE", "HTML 不能为空", 400, "提供 HTML");
     }
     validateState(input.state);
-    waiters.clear(input.sessionId, createRuntimeError("STALE_PAGE", "页面已更新", 409, "使用新页面提交"));
+    waiters.clear(
+      input.sessionId,
+      createRuntimeError("STALE_PAGE", "页面已更新", 409, "使用新页面提交"),
+    );
     session.pageId = makeId("page");
     session.pageVersion += 1;
     session.html = input.html;
@@ -159,7 +167,10 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     if (!session || session.status === "ended") return { ok: false };
     session.status = "ended";
     session.updatedAt = Date.now();
-    waiters.clear(sessionId, createRuntimeError("SESSION_ENDED", "session 已结束", 410, "session 已结束"));
+    waiters.clear(
+      sessionId,
+      createRuntimeError("SESSION_ENDED", "session 已结束", 410, "session 已结束"),
+    );
     return { ok: true };
   };
 
@@ -175,9 +186,12 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     listSessions: () => [...sessions.values()],
     setBaseUrl: (value) => {
       baseUrl = value.replace(/\/$/, "");
-      sessionOutputs.forEach((output) => { output.url = `${baseUrl}/session/${output.sessionId}`; });
+      sessionOutputs.forEach((output) => {
+        output.url = `${baseUrl}/session/${output.sessionId}`;
+      });
     },
     countWaiters: (sessionId?: string) => waiters.count(sessionId),
-    countLiveSessions: () => [...sessions.values()].filter((session) => !isTerminalStatus(session.status)).length,
+    countLiveSessions: () =>
+      [...sessions.values()].filter((session) => !isTerminalStatus(session.status)).length,
   };
 };

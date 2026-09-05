@@ -1,11 +1,4 @@
-import {
-  literal,
-  number,
-  object,
-  safeParse,
-  string,
-  unknown,
-} from "valibot";
+import { literal, number, object, safeParse, string, unknown } from "valibot";
 
 import { defaultMaxPayloadBytes, protocolVersion } from "./constants";
 import type { RuntimeError, SubmissionEnvelope } from "./types";
@@ -49,26 +42,48 @@ const isJsonSerializable = (value: unknown, seen = new Set<object>()): boolean =
     seen.delete(value);
     return false;
   }
-  const result = Object.entries(value).every(([key, item]) =>
-    typeof key === "string" && isJsonSerializable(item, seen),
+  const result = Object.entries(value).every(
+    ([key, item]) => typeof key === "string" && isJsonSerializable(item, seen),
   );
   seen.delete(value);
   return result;
 };
 
-const parseEnvelope = (value: unknown, maxPayloadBytes = defaultMaxPayloadBytes): SubmissionEnvelope => {
+const parseEnvelope = (
+  value: unknown,
+  maxPayloadBytes = defaultMaxPayloadBytes,
+): SubmissionEnvelope => {
   const result = safeParse(envelopeSchema, value);
   if (!result.success) {
     throw createRuntimeError("INVALID_ENVELOPE", "提交 envelope 无效", 400, "检查字段和协议版本");
   }
   if (result.output.pageVersion <= 0 || !Number.isInteger(result.output.pageVersion)) {
-    throw createRuntimeError("INVALID_PAGE_VERSION", "页面版本必须是正整数", 400, "使用当前页面版本");
+    throw createRuntimeError(
+      "INVALID_PAGE_VERSION",
+      "页面版本必须是正整数",
+      400,
+      "使用当前页面版本",
+    );
   }
-  if (result.output.sessionId.length === 0 || result.output.pageId.length === 0 || result.output.kind.length === 0) {
-    throw createRuntimeError("INVALID_ENVELOPE", "提交 envelope 包含空字段", 400, "补全 sessionId、pageId 和 kind");
+  if (
+    result.output.sessionId.length === 0 ||
+    result.output.pageId.length === 0 ||
+    result.output.kind.length === 0
+  ) {
+    throw createRuntimeError(
+      "INVALID_ENVELOPE",
+      "提交 envelope 包含空字段",
+      400,
+      "补全 sessionId、pageId 和 kind",
+    );
   }
   if (!isJsonSerializable(result.output.data) || !isJsonSerializable(result.output.metadata)) {
-    throw createRuntimeError("INVALID_ENVELOPE", "data 和 metadata 必须是 JSON 数据", 400, "移除不可序列化值");
+    throw createRuntimeError(
+      "INVALID_ENVELOPE",
+      "data 和 metadata 必须是 JSON 数据",
+      400,
+      "移除不可序列化值",
+    );
   }
   let serialized: string;
   try {
@@ -84,9 +99,12 @@ const parseEnvelope = (value: unknown, maxPayloadBytes = defaultMaxPayloadBytes)
 
 export const parseSubmission = (value: unknown): SubmissionEnvelope => parseEnvelope(value);
 
-export const createSubmissionEnvelope = (value: unknown): SubmissionEnvelope => parseEnvelope(value);
+export const createSubmissionEnvelope = (value: unknown): SubmissionEnvelope =>
+  parseEnvelope(value);
 
-export const parseSubmissionWithLimit = (value: unknown, maxPayloadBytes: number): SubmissionEnvelope =>
-  parseEnvelope(value, maxPayloadBytes);
+export const parseSubmissionWithLimit = (
+  value: unknown,
+  maxPayloadBytes: number,
+): SubmissionEnvelope => parseEnvelope(value, maxPayloadBytes);
 
 export { createRuntimeError, isJsonSerializable };

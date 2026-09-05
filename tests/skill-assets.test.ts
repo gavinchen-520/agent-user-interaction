@@ -76,11 +76,23 @@ describe("html-interaction skill assets", () => {
     const bridge = await readAsset(bridgePath);
     const { submitToAgent, messages } = executeBridge(bridge);
 
-    expect(submitToAgent({ kind: "confirm", data: { ok: true, nested: [1, "two"] }, metadata: { source: "page" } })).toBe(true);
-    expect(messages).toEqual([{
-      type: "html-submit",
-      payload: { kind: "confirm", data: { ok: true, nested: [1, "two"] }, metadata: { source: "page" } },
-    }]);
+    expect(
+      submitToAgent({
+        kind: "confirm",
+        data: { ok: true, nested: [1, "two"] },
+        metadata: { source: "page" },
+      }),
+    ).toBe(true);
+    expect(messages).toEqual([
+      {
+        type: "html-submit",
+        payload: {
+          kind: "confirm",
+          data: { ok: true, nested: [1, "two"] },
+          metadata: { source: "page" },
+        },
+      },
+    ]);
   });
 
   it("rejects invalid bridge input without sending messages", async () => {
@@ -91,8 +103,12 @@ describe("html-interaction skill assets", () => {
 
     expect(submitToAgent({ kind: "", data: {}, metadata: {} })).toBe(false);
     expect(submitToAgent({ kind: "valid", data: circularData, metadata: {} })).toBe(false);
-    expect(submitToAgent({ kind: "valid", data: { value: Number.POSITIVE_INFINITY }, metadata: {} })).toBe(false);
-    expect(submitToAgent({ kind: "valid", data: {}, metadata: { value: "x".repeat(64 * 1024) } })).toBe(false);
+    expect(
+      submitToAgent({ kind: "valid", data: { value: Number.POSITIVE_INFINITY }, metadata: {} }),
+    ).toBe(false);
+    expect(
+      submitToAgent({ kind: "valid", data: {}, metadata: { value: "x".repeat(64 * 1024) } }),
+    ).toBe(false);
     expect(submitToAgent(null)).toBe(false);
     expect(submitToAgent({ kind: "valid", data: undefined, metadata: {} })).toBe(false);
     expect(submitToAgent({ kind: "valid", data: {}, metadata: undefined })).toBe(false);
@@ -100,7 +116,9 @@ describe("html-interaction skill assets", () => {
   });
 });
 
-const executeBridge = (bridge: string): {
+const executeBridge = (
+  bridge: string,
+): {
   submitToAgent: (payload: unknown) => boolean;
   messages: unknown[];
 } => {

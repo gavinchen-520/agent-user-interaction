@@ -4,7 +4,12 @@ import { createHtmlRuntime, createRuntimeServer } from "./runtime";
 import { createHtmlSessionTools } from "./tools";
 
 const getDeletedSessionId = (event: { type: string; properties: unknown }): string | undefined => {
-  if (event.type !== "session.deleted" || typeof event.properties !== "object" || event.properties === null) return undefined;
+  if (
+    event.type !== "session.deleted" ||
+    typeof event.properties !== "object" ||
+    event.properties === null
+  )
+    return undefined;
   const properties = event.properties as Record<string, unknown>;
   const info = properties.info;
   if (typeof info !== "object" || info === null) return undefined;
@@ -17,7 +22,11 @@ const plugin: Plugin = async () => {
   const server = await createRuntimeServer(runtime, { skipBrowser: true });
   const sessionsByOpenCodeSession = new Map<string, Set<string>>();
   const endSessions = async (sessionIds: Iterable<string>): Promise<void> => {
-    await Promise.all([...sessionIds].map(async (sessionId) => { await runtime.endSession(sessionId); }));
+    await Promise.all(
+      [...sessionIds].map(async (sessionId) => {
+        await runtime.endSession(sessionId);
+      }),
+    );
   };
 
   return {

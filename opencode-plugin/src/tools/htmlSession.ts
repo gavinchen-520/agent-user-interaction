@@ -1,21 +1,22 @@
 import { tool } from "@opencode-ai/plugin/tool";
-
-import { defaultMaxPayloadBytes } from "../runtime/constants";
 import type { HtmlRuntime } from "../runtime";
+import { defaultMaxPayloadBytes } from "../runtime/constants";
 import type { OpenCodeTool } from "../types";
 
 type SessionCreatedHandler = (opencodeSessionId: string, htmlSessionId: string) => void;
 
 const maxHtmlBytes = defaultMaxPayloadBytes;
 
-const htmlSchema = tool.schema.string()
+const htmlSchema = tool.schema
+  .string()
   .min(1, "HTML 不能为空")
   .refine((html) => new TextEncoder().encode(html).byteLength <= maxHtmlBytes, "HTML 超过大小限制");
 
 const toJson = (value: object): string => JSON.stringify(value);
 
 const validateHtmlSize = (html: string): void => {
-  if (new TextEncoder().encode(html).byteLength > maxHtmlBytes) throw new Error("HTML 超过大小限制");
+  if (new TextEncoder().encode(html).byteLength > maxHtmlBytes)
+    throw new Error("HTML 超过大小限制");
 };
 
 export const createHtmlSessionTools = (

@@ -41,12 +41,19 @@ describe("插件生命周期", () => {
     const context = createToolContext("opencode-session");
     const first = parseOutput(await create.execute({ html: "<p>first</p>" }, context));
     const second = parseOutput(await create.execute({ html: "<p>second</p>" }, context));
-    if (typeof first.sessionId !== "string" || typeof second.sessionId !== "string") throw new Error("创建工具未返回 sessionId");
+    if (typeof first.sessionId !== "string" || typeof second.sessionId !== "string")
+      throw new Error("创建工具未返回 sessionId");
 
-    await hooks.event({ event: { type: "session.deleted", properties: { info: { id: "opencode-session" } } } });
+    await hooks.event({
+      event: { type: "session.deleted", properties: { info: { id: "opencode-session" } } },
+    });
 
-    await expect(end.execute({ sessionId: first.sessionId }, context)).resolves.toBe(JSON.stringify({ ok: false }));
-    await expect(end.execute({ sessionId: second.sessionId }, context)).resolves.toBe(JSON.stringify({ ok: false }));
+    await expect(end.execute({ sessionId: first.sessionId }, context)).resolves.toBe(
+      JSON.stringify({ ok: false }),
+    );
+    await expect(end.execute({ sessionId: second.sessionId }, context)).resolves.toBe(
+      JSON.stringify({ ok: false }),
+    );
     await hooks.dispose?.();
   });
 
@@ -61,6 +68,8 @@ describe("插件生命周期", () => {
 
     await hooks.dispose();
 
-    await expect(end.execute({ sessionId: created.sessionId }, context)).resolves.toBe(JSON.stringify({ ok: false }));
+    await expect(end.execute({ sessionId: created.sessionId }, context)).resolves.toBe(
+      JSON.stringify({ ok: false }),
+    );
   });
 });

@@ -15,7 +15,8 @@
       }
     } else {
       for (var key in value) {
-        if (Object.prototype.hasOwnProperty.call(value, key) && !isJsonCompatible(value[key], seen)) return false;
+        if (Object.prototype.hasOwnProperty.call(value, key) && !isJsonCompatible(value[key], seen))
+          return false;
       }
     }
     seen.delete(value);
@@ -25,8 +26,15 @@
   function submitToAgent(payload) {
     if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return false;
     if (typeof payload.kind !== "string" || payload.kind.trim() === "") return false;
-    if (!isJsonCompatible(payload.data, new WeakSet()) || !isJsonCompatible(payload.metadata, new WeakSet())) return false;
-    var message = { type: "html-submit", payload: { kind: payload.kind, data: payload.data, metadata: payload.metadata } };
+    if (
+      !isJsonCompatible(payload.data, new WeakSet()) ||
+      !isJsonCompatible(payload.metadata, new WeakSet())
+    )
+      return false;
+    var message = {
+      type: "html-submit",
+      payload: { kind: payload.kind, data: payload.data, metadata: payload.metadata },
+    };
     var serialized;
     try {
       serialized = JSON.stringify(message);

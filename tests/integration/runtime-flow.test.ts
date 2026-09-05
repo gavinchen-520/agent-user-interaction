@@ -13,13 +13,17 @@ const extractPageUrl = (wrapperHtml: string): string => {
   return match[1];
 };
 
-const postEnvelope = async (endpoint: string, token: string, envelope: Record<string, unknown>): Promise<PostResult> => {
+const postEnvelope = async (
+  endpoint: string,
+  token: string,
+  envelope: Record<string, unknown>,
+): Promise<PostResult> => {
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/json", "x-runtime-token": token },
     body: JSON.stringify(envelope),
   });
-  const body = await response.json() as { code?: string };
+  const body = (await response.json()) as { code?: string };
   return { status: response.status, code: body.code };
 };
 
@@ -30,7 +34,9 @@ describe("runtime 集成流程", () => {
   afterEach(async () => {
     await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
     for (const runtime of runtimes.splice(0)) {
-      await Promise.all(runtime.listSessions().map((session) => runtime.endSession(session.sessionId)));
+      await Promise.all(
+        runtime.listSessions().map((session) => runtime.endSession(session.sessionId)),
+      );
     }
   });
 
@@ -87,7 +93,11 @@ describe("runtime 集成流程", () => {
       protocolVersion: 1,
     });
     expect(firstPost.status).toBe(200);
-    await expect(firstWait).resolves.toMatchObject({ kind: "phase-1", pageVersion: 1, data: { resourceId } });
+    await expect(firstWait).resolves.toMatchObject({
+      kind: "phase-1",
+      pageVersion: 1,
+      data: { resourceId },
+    });
     expect(runtime.countWaiters(created.sessionId)).toBe(0);
     expect(runtime.countLiveSessions()).toBe(1);
 

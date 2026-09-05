@@ -38,18 +38,24 @@ const handleCommand = async (command: HostCommand): Promise<void> => {
     }
     case "wait": {
       // 只注册等待，不阻塞后续命令；结果异步写回 stdout
-      runtime.waitSubmission({ sessionId: getActiveSessionId(), timeoutMs: command.timeoutMs }).then(
-        (submission) => writeMessage({ type: "submission", ...submission }),
-        (error: unknown) => writeMessage({
-          type: "wait-error",
-          code: (error as { code?: string }).code ?? "UNKNOWN",
-          message: error instanceof Error ? error.message : String(error),
-        }),
-      );
+      runtime
+        .waitSubmission({ sessionId: getActiveSessionId(), timeoutMs: command.timeoutMs })
+        .then(
+          (submission) => writeMessage({ type: "submission", ...submission }),
+          (error: unknown) =>
+            writeMessage({
+              type: "wait-error",
+              code: (error as { code?: string }).code ?? "UNKNOWN",
+              message: error instanceof Error ? error.message : String(error),
+            }),
+        );
       return;
     }
     case "update": {
-      const updated = await runtime.updateSession({ sessionId: getActiveSessionId(), html: command.html });
+      const updated = await runtime.updateSession({
+        sessionId: getActiveSessionId(),
+        html: command.html,
+      });
       writeMessage({ type: "updated", ...updated });
       return;
     }
@@ -59,7 +65,11 @@ const handleCommand = async (command: HostCommand): Promise<void> => {
       return;
     }
     case "inspect": {
-      writeMessage({ type: "inspected", liveSessions: runtime.countLiveSessions(), waiters: runtime.countWaiters() });
+      writeMessage({
+        type: "inspected",
+        liveSessions: runtime.countLiveSessions(),
+        waiters: runtime.countWaiters(),
+      });
       return;
     }
     case "shutdown": {

@@ -1,3 +1,3 @@
-export { buildWrapperHtml, createWrapperMessageHandler } from "./wrapper";
-export type { WrapperInput, WrapperMessageEvent } from "./wrapper";
 export { openBrowser } from "./browser";
+export type { WrapperInput, WrapperMessageEvent } from "./wrapper";
+export { buildWrapperHtml, createWrapperMessageHandler } from "./wrapper";

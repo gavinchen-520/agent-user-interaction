@@ -71,6 +71,9 @@ export const createWaiterRegistry = <K, T>() => {
     notifyAll,
     notifyFirstAndClear,
     clear,
-    count: (key?: K) => key === undefined ? [...waiters.values()].reduce((total, set) => total + set.size, 0) : waiters.get(key)?.size ?? 0,
+    count: (key?: K) =>
+      key === undefined
+        ? [...waiters.values()].reduce((total, set) => total + set.size, 0)
+        : (waiters.get(key)?.size ?? 0),
   };
 };

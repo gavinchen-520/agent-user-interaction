@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
-
-import { createRuntimeServer } from "../../opencode-plugin/src/runtime/server";
 import { createHtmlRuntime } from "../../opencode-plugin/src/runtime";
+import { createRuntimeServer } from "../../opencode-plugin/src/runtime/server";
 
 describe("安全 HTML runtime server", () => {
   const servers: Array<{ stop(force?: boolean): Promise<void> }> = [];
@@ -35,8 +34,17 @@ describe("安全 HTML runtime server", () => {
     const waiting = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 500 });
     const response = await fetch(`${server.url}/session/${created.sessionId}/submit`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "" },
-      body: JSON.stringify({ ...created, kind: "confirm", data: { ok: true }, metadata: {}, protocolVersion: 1 }),
+      headers: {
+        "content-type": "application/json",
+        "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "",
+      },
+      body: JSON.stringify({
+        ...created,
+        kind: "confirm",
+        data: { ok: true },
+        metadata: {},
+        protocolVersion: 1,
+      }),
     });
     expect(response.status).toBe(200);
     await expect(waiting).resolves.toMatchObject({ kind: "confirm", pageVersion: 1 });
@@ -66,20 +74,64 @@ describe("安全 HTML runtime server", () => {
   it("拒绝缺少 token、错误 JSON、旧页面和超大 body", async () => {
     const runtime = createHtmlRuntime({ openBrowser: false });
     const created = await runtime.createSession({ html: "<p>page</p>" });
-    const server = await createRuntimeServer(runtime, { skipBrowser: true, maxPayloadBytes: 1_000 });
+    const server = await createRuntimeServer(runtime, {
+      skipBrowser: true,
+      maxPayloadBytes: 1_000,
+    });
     servers.push(server);
     const endpoint = `${server.url}/session/${created.sessionId}/submit`;
-    const envelope = { sessionId: created.sessionId, pageId: created.pageId, pageVersion: 1, kind: "ok", data: {}, metadata: {}, protocolVersion: 1 };
-    const headers = { "content-type": "application/json", "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "" };
+    const envelope = {
+      sessionId: created.sessionId,
+      pageId: created.pageId,
+      pageVersion: 1,
+      kind: "ok",
+      data: {},
+      metadata: {},
+      protocolVersion: 1,
+    };
+    const headers = {
+      "content-type": "application/json",
+      "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "",
+    };
 
-    await expect(fetch(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(envelope) })).resolves.toMatchObject({ status: 401 });
-    await expect(fetch(endpoint, { method: "POST", headers: { ...headers, "x-runtime-token": "wrong" }, body: JSON.stringify(envelope) })).resolves.toMatchObject({ status: 401 });
-    await expect(fetch(endpoint, { method: "POST", headers, body: "{" })).resolves.toMatchObject({ status: 400 });
-    const malformedEnvelope = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify({ kind: "missing-session" }) });
+    await expect(
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(envelope),
+      }),
+    ).resolves.toMatchObject({ status: 401 });
+    await expect(
+      fetch(endpoint, {
+        method: "POST",
+        headers: { ...headers, "x-runtime-token": "wrong" },
+        body: JSON.stringify(envelope),
+      }),
+    ).resolves.toMatchObject({ status: 401 });
+    await expect(fetch(endpoint, { method: "POST", headers, body: "{" })).resolves.toMatchObject({
+      status: 400,
+    });
+    const malformedEnvelope = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ kind: "missing-session" }),
+    });
     expect(malformedEnvelope.status).toBe(400);
-    expect(await malformedEnvelope.json()).toMatchObject({ code: "INVALID_ENVELOPE", context: "submit", action: expect.any(String) });
-    await expect(fetch(endpoint, { method: "POST", headers, body: "x".repeat(1_001) })).resolves.toMatchObject({ status: 413 });
-    await expect(fetch(endpoint, { method: "POST", headers, body: JSON.stringify({ ...envelope, pageVersion: 2 }) })).resolves.toMatchObject({ status: 409 });
+    expect(await malformedEnvelope.json()).toMatchObject({
+      code: "INVALID_ENVELOPE",
+      context: "submit",
+      action: expect.any(String),
+    });
+    await expect(
+      fetch(endpoint, { method: "POST", headers, body: "x".repeat(1_001) }),
+    ).resolves.toMatchObject({ status: 413 });
+    await expect(
+      fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ...envelope, pageVersion: 2 }),
+      }),
+    ).resolves.toMatchObject({ status: 409 });
   });
 
   it("为所有路由错误返回稳定 JSON envelope，并校验 authority 和 session/page", async () => {
@@ -90,17 +142,58 @@ describe("安全 HTML runtime server", () => {
     const endpoint = `${server.url}/session/${created.sessionId}/submit`;
     const getError = async (url: string, init?: RequestInit) => {
       const response = await fetch(url, init);
-      return { status: response.status, body: await response.json() as { code: string; context: string; action: string } };
+      return {
+        status: response.status,
+        body: (await response.json()) as { code: string; context: string; action: string },
+      };
     };
-    const validHeaders = { "content-type": "application/json", "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "" };
-    const envelope = { sessionId: created.sessionId, pageId: created.pageId, pageVersion: 1, kind: "ok", data: {}, metadata: {}, protocolVersion: 1 };
+    const validHeaders = {
+      "content-type": "application/json",
+      "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "",
+    };
+    const envelope = {
+      sessionId: created.sessionId,
+      pageId: created.pageId,
+      pageVersion: 1,
+      kind: "ok",
+      data: {},
+      metadata: {},
+      protocolVersion: 1,
+    };
 
-    await expect(getError(`${server.url}/missing`)).resolves.toMatchObject({ status: 404, body: { code: "ROUTE_NOT_FOUND", context: "route" } });
-    await expect(getError(endpoint, { method: "GET" })).resolves.toMatchObject({ status: 405, body: { code: "METHOD_NOT_ALLOWED", context: "submit", action: expect.any(String) } });
-    await expect(getError(endpoint, { method: "POST", headers: { ...validHeaders, host: "127.0.0.1:1" }, body: JSON.stringify(envelope) })).resolves.toMatchObject({ status: 403, body: { code: "INVALID_AUTHORITY" } });
-    await expect(getError(endpoint, { method: "POST", headers: { ...validHeaders, origin: "http://localhost:1234" }, body: JSON.stringify(envelope) })).resolves.toMatchObject({ status: 403, body: { code: "INVALID_AUTHORITY" } });
-    await expect(getError(`${server.url}/session/unknown/page`)).resolves.toMatchObject({ status: 404, body: { code: "SESSION_NOT_FOUND" } });
-    await expect(getError(endpoint, { method: "POST", headers: validHeaders, body: JSON.stringify({ ...envelope, pageId: "old" }) })).resolves.toMatchObject({ status: 409, body: { code: "STALE_PAGE" } });
+    await expect(getError(`${server.url}/missing`)).resolves.toMatchObject({
+      status: 404,
+      body: { code: "ROUTE_NOT_FOUND", context: "route" },
+    });
+    await expect(getError(endpoint, { method: "GET" })).resolves.toMatchObject({
+      status: 405,
+      body: { code: "METHOD_NOT_ALLOWED", context: "submit", action: expect.any(String) },
+    });
+    await expect(
+      getError(endpoint, {
+        method: "POST",
+        headers: { ...validHeaders, host: "127.0.0.1:1" },
+        body: JSON.stringify(envelope),
+      }),
+    ).resolves.toMatchObject({ status: 403, body: { code: "INVALID_AUTHORITY" } });
+    await expect(
+      getError(endpoint, {
+        method: "POST",
+        headers: { ...validHeaders, origin: "http://localhost:1234" },
+        body: JSON.stringify(envelope),
+      }),
+    ).resolves.toMatchObject({ status: 403, body: { code: "INVALID_AUTHORITY" } });
+    await expect(getError(`${server.url}/session/unknown/page`)).resolves.toMatchObject({
+      status: 404,
+      body: { code: "SESSION_NOT_FOUND" },
+    });
+    await expect(
+      getError(endpoint, {
+        method: "POST",
+        headers: validHeaders,
+        body: JSON.stringify({ ...envelope, pageId: "old" }),
+      }),
+    ).resolves.toMatchObject({ status: 409, body: { code: "STALE_PAGE" } });
   });
 
   it("重复提交只接受一次并返回稳定错误", async () => {
@@ -109,21 +202,42 @@ describe("安全 HTML runtime server", () => {
     const server = await createRuntimeServer(runtime, { skipBrowser: true });
     servers.push(server);
     const endpoint = `${server.url}/session/${created.sessionId}/submit`;
-    const headers = { "content-type": "application/json", "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "" };
-    const body = JSON.stringify({ sessionId: created.sessionId, pageId: created.pageId, pageVersion: 1, kind: "ok", data: {}, metadata: {}, protocolVersion: 1 });
-    await expect(fetch(endpoint, { method: "POST", headers, body })).resolves.toMatchObject({ status: 200 });
+    const headers = {
+      "content-type": "application/json",
+      "x-runtime-token": runtime.getSession(created.sessionId)?.token ?? "",
+    };
+    const body = JSON.stringify({
+      sessionId: created.sessionId,
+      pageId: created.pageId,
+      pageVersion: 1,
+      kind: "ok",
+      data: {},
+      metadata: {},
+      protocolVersion: 1,
+    });
+    await expect(fetch(endpoint, { method: "POST", headers, body })).resolves.toMatchObject({
+      status: 200,
+    });
     const duplicate = await fetch(endpoint, { method: "POST", headers, body });
     expect(duplicate.status).toBe(409);
-    expect(await duplicate.json()).toMatchObject({ code: "DUPLICATE_SUBMISSION", context: "submit" });
+    expect(await duplicate.json()).toMatchObject({
+      code: "DUPLICATE_SUBMISSION",
+      context: "submit",
+    });
   });
 
   it("浏览器打开失败时停止 server", async () => {
     const runtime = createHtmlRuntime({ openBrowser: false });
     await runtime.createSession({ html: "<p>page</p>" });
     let openedUrl = "";
-    await expect(createRuntimeServer(runtime, {
-      openBrowser: async (url) => { openedUrl = url; throw new Error("browser unavailable"); },
-    })).rejects.toThrow("browser unavailable");
+    await expect(
+      createRuntimeServer(runtime, {
+        openBrowser: async (url) => {
+          openedUrl = url;
+          throw new Error("browser unavailable");
+        },
+      }),
+    ).rejects.toThrow("browser unavailable");
     expect(openedUrl).toStartWith("http://127.0.0.1:");
     await expect(fetch(openedUrl)).rejects.toThrow();
   });
