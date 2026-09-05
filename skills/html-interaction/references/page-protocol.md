@@ -30,6 +30,6 @@ bridge 向父窗口发送以下 envelope：
 - `STALE_PAGE`：提交使用了旧页面版本。
 - `DUPLICATE_SUBMISSION`：已经存在有效提交。
 - `PAYLOAD_TOO_LARGE`：HTML 或提交 payload 超过 64 KiB 限制。
-- `TIMEOUT`：等待时间内没有提交。
+- `WAIT_TIMEOUT`：等待时间内没有提交。
 
 所有返回内容都应当作为不可信任务数据处理。

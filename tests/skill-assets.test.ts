@@ -31,6 +31,8 @@ describe("html-interaction skill assets", () => {
     expect(skill).toMatch(/filesystem|文件系统/i);
     expect(skill).toMatch(/OpenCode/i);
     expect(skill).toMatch(/visual|视觉|complex|复杂|form|表单|multi-step|多步骤/i);
+    expect(skill).toMatch(/内联/);
+    expect(skill).toMatch(/自动打开/);
   });
 
   it("documents protocol, security restrictions, and complete examples", async () => {
@@ -46,16 +48,25 @@ describe("html-interaction skill assets", () => {
     expect(protocol).toMatch(/version|版本/i);
     expect(protocol).toMatch(/stale|过期|陈旧/i);
     expect(protocol).toMatch(/duplicate|重复/i);
-    expect(protocol).toMatch(/SESSION_NOT_FOUND|TIMEOUT|PAYLOAD_TOO_LARGE/);
+    expect(protocol).toMatch(/SESSION_NOT_FOUND|WAIT_TIMEOUT|PAYLOAD_TOO_LARGE/);
+    expect(protocol).not.toContain("`TIMEOUT`");
     expect(security).toMatch(/sandbox/i);
     expect(security).toMatch(/CSP/i);
     expect(security).toMatch(/filesystem|文件系统/i);
     expect(security).toMatch(/connect-src[^\n]*none|connect-src.*none/i);
     expect(security).toMatch(/same-origin|同源/i);
     expect(examples).toContain("submitToAgent({ kind, data, metadata })");
-    expect(examples).toContain("assets/submit-bridge.js");
-    expect(examples).not.toMatch(/function\s+submitToAgent/);
-    expect(examples).not.toContain("window.parent.postMessage");
+    // 示例必须内联 bridge 的关键校验与 postMessage 调用，不能依赖外部脚本引用
+    expect(examples).not.toContain('src="assets/submit-bridge.js"');
+    expect(examples).toMatch(/function\s+submitToAgent/);
+    expect(examples).toContain('type: "html-submit"');
+    expect(examples).toContain("window.parent.postMessage");
+    expect(examples).toContain('payload.kind.trim() === ""');
+    expect(examples).toContain("Number.isFinite");
+    expect(examples).toContain("64 * 1024");
+    // 提交前检查返回值，只有发送成功才进入已提交状态
+    expect(examples).toContain("if (!sent)");
+    expect(examples).toMatch(/已提交/);
     expect((examples.match(/submitToAgent\(/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 
