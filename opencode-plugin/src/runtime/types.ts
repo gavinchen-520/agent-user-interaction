@@ -18,7 +18,8 @@ export type RuntimeErrorCode =
   | "STALE_PAGE"
   | "DUPLICATE_SUBMISSION"
   | "WAIT_TIMEOUT"
-  | "WAIT_CANCELLED";
+  | "WAIT_CANCELLED"
+  | "BROWSER_OPEN_FAILED";
 
 export type RuntimeError = Error & {
   code: RuntimeErrorCode;
@@ -94,7 +95,6 @@ export type RuntimeOptions = {
   defaultTimeoutMs?: number;
   sessionTtlMs?: number;
   baseUrl?: string;
-  openBrowser?: boolean;
 };
 
 export type HtmlRuntime = {

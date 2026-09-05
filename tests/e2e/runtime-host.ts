@@ -16,7 +16,7 @@ const writeMessage = (message: Record<string, unknown>): void => {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 };
 
-const runtime = createHtmlRuntime({ openBrowser: false });
+const runtime = createHtmlRuntime();
 let server: Awaited<ReturnType<typeof createRuntimeServer>> | undefined;
 
 const getActiveSessionId = (): string => runtime.listSessions()[0]?.sessionId ?? "";
@@ -25,7 +25,7 @@ const handleCommand = async (command: HostCommand): Promise<void> => {
   switch (command.type) {
     case "create": {
       const created = await runtime.createSession({ title: command.title, html: command.html });
-      server = await createRuntimeServer(runtime, { skipBrowser: true });
+      server = await createRuntimeServer(runtime, { openBrowser: false });
       writeMessage({
         type: "ready",
         url: server.url,

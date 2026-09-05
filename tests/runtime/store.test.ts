@@ -4,7 +4,7 @@ import { createHtmlRuntime } from "../../opencode-plugin/src/runtime";
 
 describe("HTML session runtime", () => {
   it("创建页面为版本 1，更新生成版本 2 和新 pageId", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<h1>one</h1>" });
     expect(runtime.getSession(created.sessionId)?.status).toBe("created");
     expect(runtime.openSession(created.sessionId).status).toBe("opened");
@@ -20,7 +20,7 @@ describe("HTML session runtime", () => {
   });
 
   it("首个有效提交唤醒 waiter，重复提交不再唤醒", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<button>ok</button>" });
     const envelope = {
       sessionId: created.sessionId,
@@ -44,7 +44,7 @@ describe("HTML session runtime", () => {
   });
 
   it("取消 wait 返回稳定错误并清理 waiter", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<h1>cancel</h1>" });
     const controller = new AbortController();
     const pending = runtime.waitSubmission({
@@ -58,7 +58,7 @@ describe("HTML session runtime", () => {
   });
 
   it("提交时清理同一页面的并发 waiter", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<h1>parallel</h1>" });
     const first = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1000 });
     const second = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1000 });
@@ -76,7 +76,7 @@ describe("HTML session runtime", () => {
   });
 
   it("拒绝不可序列化 session state，但接受共享普通对象", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const shared = { value: "same" };
     const created = await runtime.createSession({
       html: "<h1>state</h1>",
@@ -98,7 +98,7 @@ describe("HTML session runtime", () => {
   });
 
   it("更新和结束会清理旧 waiter", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<h1>old</h1>" });
     const oldWaiter = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 1000 });
     const updated = await runtime.updateSession({
@@ -113,7 +113,7 @@ describe("HTML session runtime", () => {
   });
 
   it("拒绝旧页面提交，超时返回 WAIT_TIMEOUT，结束操作幂等", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<h1>one</h1>" });
     const updated = await runtime.updateSession({
       sessionId: created.sessionId,

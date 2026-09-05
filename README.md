@@ -70,7 +70,7 @@ bunx playwright test tests/e2e/html-interaction.spec.ts --project=chromium
 
 ## 故障排查
 
-- 浏览器未打开：确认 OpenCode 插件已构建并启用，且运行环境允许 wrapper 打开浏览器。
+- 浏览器未打开：`create_html_session` 成功后会自动打开浏览器；若环境不允许（如无显示环境），工具返回 `BROWSER_OPEN_FAILED` 并结束该 session，此时把返回的页面 URL 手动告诉用户打开。
 - 等待超时：确认页面调用了 `submitToAgent`，并检查 `wait_html_submission` 的 `sessionId` 与等待时长。
 - 页面过期：页面更新后只使用最新 URL 和 `pageVersion`，旧页面提交会被拒绝。
 - 重复提交：提交成功后禁用唯一提交控件；同一 session 的后续提交会被拒绝。

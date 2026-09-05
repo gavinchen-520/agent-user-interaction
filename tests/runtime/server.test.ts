@@ -10,9 +10,9 @@ describe("安全 HTML runtime server", () => {
   });
 
   it("提供 wrapper、当前页面和受保护提交 endpoint", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ title: "选择", html: "<h1>safe</h1>" });
-    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
     servers.push(server);
 
     const wrapper = await fetch(`${server.url}/session/${created.sessionId}`);
@@ -21,7 +21,8 @@ describe("安全 HTML runtime server", () => {
     expect(wrapper.headers.get("content-security-policy")).toContain("connect-src 'self'");
 
     const root = await fetch(server.url);
-    expect(root.status).toBe(200);
+    expect(root.status).toBe(404);
+    expect(await root.text()).not.toContain(runtime.getSession(created.sessionId)?.token ?? "");
 
     const page = await fetch(`${server.url}/session/${created.sessionId}/page`);
     expect(page.status).toBe(200);
@@ -51,19 +52,18 @@ describe("安全 HTML runtime server", () => {
   });
 
   it("server 启动后创建 session 会返回可直接打开的 wrapper URL", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
-    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    const runtime = createHtmlRuntime();
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
     servers.push(server);
     const created = await runtime.createSession({ html: "<h1>after server</h1>" });
 
     expect(created.url).toBe(`${server.url}/session/${created.sessionId}`);
-    expect((await fetch(server.url)).status).toBe(200);
   });
 
   it("server 启动后会回写已创建 session 的 URL", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<h1>before server</h1>" });
-    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
     servers.push(server);
 
     const parsedUrl = new URL(created.url);
@@ -72,10 +72,10 @@ describe("安全 HTML runtime server", () => {
   });
 
   it("拒绝缺少 token、错误 JSON、旧页面和超大 body", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<p>page</p>" });
     const server = await createRuntimeServer(runtime, {
-      skipBrowser: true,
+      openBrowser: false,
       maxPayloadBytes: 1_000,
     });
     servers.push(server);
@@ -135,9 +135,9 @@ describe("安全 HTML runtime server", () => {
   });
 
   it("为所有路由错误返回稳定 JSON envelope，并校验 authority 和 session/page", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<p>page</p>" });
-    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
     servers.push(server);
     const endpoint = `${server.url}/session/${created.sessionId}/submit`;
     const getError = async (url: string, init?: RequestInit) => {
@@ -197,9 +197,9 @@ describe("安全 HTML runtime server", () => {
   });
 
   it("重复提交只接受一次并返回稳定错误", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<p>page</p>" });
-    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
     servers.push(server);
     const endpoint = `${server.url}/session/${created.sessionId}/submit`;
     const headers = {
@@ -226,9 +226,36 @@ describe("安全 HTML runtime server", () => {
     });
   });
 
+  it("GET / 返回中性 404，不暴露任何 session token", async () => {
+    const runtime = createHtmlRuntime();
+    await runtime.createSession({ html: "<p>a</p>" });
+    await runtime.createSession({ html: "<p>b</p>" });
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
+    servers.push(server);
+
+    const root = await fetch(server.url);
+    expect(root.status).toBe(404);
+    const body = await root.text();
+    for (const session of runtime.listSessions()) {
+      expect(body).not.toContain(session.token);
+    }
+  });
+
+  it("server 启动时没有 session 则跳过浏览器打开", async () => {
+    const runtime = createHtmlRuntime();
+    let openedCount = 0;
+    const server = await createRuntimeServer(runtime, {
+      openBrowser: async () => {
+        openedCount += 1;
+      },
+    });
+    servers.push(server);
+    expect(openedCount).toBe(0);
+  });
+
   it("浏览器打开失败时停止 server", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
-    await runtime.createSession({ html: "<p>page</p>" });
+    const runtime = createHtmlRuntime();
+    const created = await runtime.createSession({ html: "<p>page</p>" });
     let openedUrl = "";
     await expect(
       createRuntimeServer(runtime, {
@@ -238,7 +265,9 @@ describe("安全 HTML runtime server", () => {
         },
       }),
     ).rejects.toThrow("browser unavailable");
-    expect(openedUrl).toStartWith("http://127.0.0.1:");
+    expect(openedUrl).toMatch(
+      new RegExp(`^http://127\\.0\\.0\\.1:\\d+/session/${created.sessionId}$`),
+    );
     await expect(fetch(openedUrl)).rejects.toThrow();
   });
 });

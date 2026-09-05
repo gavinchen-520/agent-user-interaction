@@ -3,13 +3,14 @@ import { buildWrapperHtml } from "../browser/wrapper";
 import { defaultMaxPayloadBytes } from "./constants";
 import type { HtmlRuntime, RuntimeError } from "./types";
 
+// 浏览器打开选项：false 表示不打开，函数表示注入自定义打开实现，缺省由调用方决定
+export type OpenBrowserOption = boolean | ((url: string) => Promise<void>);
+
 export type ServerOptions = {
   hostname?: string;
   port?: number;
   maxPayloadBytes?: number;
-  skipBrowser?: boolean;
-  sessionId?: string;
-  openBrowser?: (url: string) => Promise<void>;
+  openBrowser?: OpenBrowserOption;
 };
 
 export type RuntimeServer = {
@@ -35,9 +36,9 @@ const errorResponse = (
   );
 };
 
-const getSessionId = (pathname: string, url: URL, fallback?: string): string | undefined => {
+const getSessionId = (pathname: string): string | undefined => {
   const match = pathname.match(/^\/session\/([^/]+)(?:\/page|\/submit)?\/?$/);
-  return match?.[1] ?? url.searchParams.get("sessionId") ?? fallback;
+  return match?.[1];
 };
 
 const isLoopback = (value: string): boolean => {
@@ -72,14 +73,15 @@ export const createRuntimeServer = async (
           403,
           "authority",
         );
-      const sessionId =
-        getSessionId(url.pathname, url, options.sessionId) ?? runtime.listSessions()[0]?.sessionId;
-      const session = sessionId ? runtime.getSession(sessionId) : undefined;
+      const sessionId = getSessionId(url.pathname);
+      if (!sessionId)
+        return errorResponse(new Error("路由不存在"), "ROUTE_NOT_FOUND", 404, "route");
+      const session = runtime.getSession(sessionId);
       if (!session)
         return errorResponse(new Error("session 不存在"), "SESSION_NOT_FOUND", 404, "session");
       const pagePath = `/session/${session.sessionId}/page`;
       const submitPath = `/session/${session.sessionId}/submit`;
-      if (url.pathname === "/" || url.pathname === `/session/${session.sessionId}`) {
+      if (url.pathname === `/session/${session.sessionId}`) {
         if (request.method !== "GET")
           return errorResponse(new Error("请求方法不允许"), "METHOD_NOT_ALLOWED", 405, "wrapper");
         return new Response(
@@ -161,12 +163,18 @@ export const createRuntimeServer = async (
     },
   };
   runtime.setBaseUrl(result.url);
-  if (!options.skipBrowser) {
-    try {
-      await (options.openBrowser ?? openBrowser)(result.url);
-    } catch (error) {
-      await result.stop(true);
-      throw error;
+  // 启动时的浏览器打开只针对已有 session 的专属 URL；无 session 时跳过，由 create 工具负责打开
+  const openBrowserOption = options.openBrowser ?? false;
+  if (openBrowserOption !== false) {
+    const firstSession = runtime.listSessions()[0];
+    if (firstSession) {
+      const open = typeof openBrowserOption === "function" ? openBrowserOption : openBrowser;
+      try {
+        await open(`${result.url}/session/${firstSession.sessionId}`);
+      } catch (error) {
+        await result.stop(true);
+        throw error;
+      }
     }
   }
   return result;

@@ -1,7 +1,12 @@
 import type { Plugin } from "@opencode-ai/plugin";
 
 import { createHtmlRuntime, createRuntimeServer } from "./runtime";
+import type { OpenBrowserOption } from "./runtime/server";
 import { createHtmlSessionTools } from "./tools";
+
+export type HtmlInteractionPluginOptions = {
+  openBrowser?: OpenBrowserOption;
+};
 
 const getDeletedSessionId = (event: { type: string; properties: unknown }): string | undefined => {
   if (
@@ -17,38 +22,47 @@ const getDeletedSessionId = (event: { type: string; properties: unknown }): stri
   return typeof id === "string" ? id : undefined;
 };
 
-const plugin: Plugin = async () => {
-  const runtime = createHtmlRuntime();
-  const server = await createRuntimeServer(runtime, { skipBrowser: true });
-  const sessionsByOpenCodeSession = new Map<string, Set<string>>();
-  const endSessions = async (sessionIds: Iterable<string>): Promise<void> => {
-    await Promise.all(
-      [...sessionIds].map(async (sessionId) => {
-        await runtime.endSession(sessionId);
-      }),
-    );
-  };
+export const createHtmlInteractionPlugin = (options: HtmlInteractionPluginOptions = {}): Plugin => {
+  return async () => {
+    const runtime = createHtmlRuntime();
+    // server 先于任何 session 启动，浏览器打开发生在 create_html_session 成功之后
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
+    const sessionsByOpenCodeSession = new Map<string, Set<string>>();
+    const endSessions = async (sessionIds: Iterable<string>): Promise<void> => {
+      await Promise.all(
+        [...sessionIds].map(async (sessionId) => {
+          await runtime.endSession(sessionId);
+        }),
+      );
+    };
 
-  return {
-    tool: createHtmlSessionTools(runtime, (opencodeSessionId, htmlSessionId) => {
-      const sessionIds = sessionsByOpenCodeSession.get(opencodeSessionId) ?? new Set<string>();
-      sessionIds.add(htmlSessionId);
-      sessionsByOpenCodeSession.set(opencodeSessionId, sessionIds);
-    }),
-    event: async ({ event }) => {
-      const sessionId = getDeletedSessionId(event);
-      if (!sessionId) return;
-      const sessionIds = sessionsByOpenCodeSession.get(sessionId);
-      if (!sessionIds) return;
-      sessionsByOpenCodeSession.delete(sessionId);
-      await endSessions(sessionIds);
-    },
-    dispose: async () => {
-      await endSessions(runtime.listSessions().map((session) => session.sessionId));
-      sessionsByOpenCodeSession.clear();
-      await server.stop(true);
-    },
+    return {
+      tool: createHtmlSessionTools(
+        runtime,
+        (opencodeSessionId, htmlSessionId) => {
+          const sessionIds = sessionsByOpenCodeSession.get(opencodeSessionId) ?? new Set<string>();
+          sessionIds.add(htmlSessionId);
+          sessionsByOpenCodeSession.set(opencodeSessionId, sessionIds);
+        },
+        { openBrowser: options.openBrowser ?? true },
+      ),
+      event: async ({ event }) => {
+        const sessionId = getDeletedSessionId(event);
+        if (!sessionId) return;
+        const sessionIds = sessionsByOpenCodeSession.get(sessionId);
+        if (!sessionIds) return;
+        sessionsByOpenCodeSession.delete(sessionId);
+        await endSessions(sessionIds);
+      },
+      dispose: async () => {
+        await endSessions(runtime.listSessions().map((session) => session.sessionId));
+        sessionsByOpenCodeSession.clear();
+        await server.stop(true);
+      },
+    };
   };
 };
+
+const plugin: Plugin = createHtmlInteractionPlugin();
 
 export default plugin;

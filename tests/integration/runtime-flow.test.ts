@@ -41,14 +41,14 @@ describe("runtime 集成流程", () => {
   });
 
   it("通过 HTTP 路由完成创建、等待、更新、再等待、结束的完整流程", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     runtimes.push(runtime);
     const resourceId = `integration-${crypto.randomUUID()}`;
     const created = await runtime.createSession({
       title: `集成 ${resourceId}`,
       html: `<main data-resource="${resourceId}"><h1>阶段 1</h1></main>`,
     });
-    const server = await createRuntimeServer(runtime, { skipBrowser: true });
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
     let serverStopped = false;
     cleanups.push(async () => {
       if (!serverStopped) {

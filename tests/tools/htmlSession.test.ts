@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { createHtmlRuntime } from "../../opencode-plugin/src/runtime";
+import type { HtmlSessionToolOptions } from "../../opencode-plugin/src/tools";
 import { createHtmlSessionTools } from "../../opencode-plugin/src/tools";
 
 const toolContext = {
@@ -17,18 +18,20 @@ const toolContext = {
 const executeTool = async (
   name: string,
   args: Record<string, unknown>,
-  runtime = createHtmlRuntime({ openBrowser: false }),
+  runtime = createHtmlRuntime(),
+  toolOptions: HtmlSessionToolOptions = { openBrowser: false },
 ) => {
-  const result = await createHtmlSessionTools(runtime)[name]?.execute(args, toolContext);
+  const result = await createHtmlSessionTools(runtime, undefined, toolOptions)[name]?.execute(
+    args,
+    toolContext,
+  );
   if (typeof result !== "string") throw new Error(`工具 ${name} 未返回 JSON 文本`);
   return { output: JSON.parse(result) as unknown, runtime };
 };
 
 describe("HTML session OpenCode 工具", () => {
   it("注册四个精确的 HTML session 工具", () => {
-    expect(
-      Object.keys(createHtmlSessionTools(createHtmlRuntime({ openBrowser: false }))).sort(),
-    ).toEqual([
+    expect(Object.keys(createHtmlSessionTools(createHtmlRuntime())).sort()).toEqual([
       "create_html_session",
       "end_html_session",
       "update_html_session",
@@ -50,7 +53,7 @@ describe("HTML session OpenCode 工具", () => {
   });
 
   it("返回原样提交的 opaque 数据和完整提交输出", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const { output: created } = await executeTool(
       "create_html_session",
       { html: "<button>submit</button>" },
@@ -86,7 +89,7 @@ describe("HTML session OpenCode 工具", () => {
   });
 
   it("更新页面版本并使结束操作幂等", async () => {
-    const runtime = createHtmlRuntime({ openBrowser: false });
+    const runtime = createHtmlRuntime();
     const { output: created } = await executeTool(
       "create_html_session",
       { html: "<p>one</p>" },
@@ -110,6 +113,50 @@ describe("HTML session OpenCode 工具", () => {
     await expect(
       executeTool("end_html_session", { sessionId: created.sessionId }, runtime),
     ).resolves.toEqual({ output: { ok: false }, runtime });
+  });
+
+  it("create 成功后打开 session 专属 URL", async () => {
+    const runtime = createHtmlRuntime();
+    const openedUrls: string[] = [];
+    const { output: created } = await executeTool(
+      "create_html_session",
+      { html: "<p>open</p>" },
+      runtime,
+      {
+        openBrowser: async (url) => {
+          openedUrls.push(url);
+        },
+      },
+    );
+    if (!isCreateOutput(created)) throw new Error("创建工具输出不符合预期");
+    expect(openedUrls).toEqual([created.url]);
+    expect(created.url).toContain(`/session/${created.sessionId}`);
+  });
+
+  it("openBrowser 为 false 时不打开浏览器且 create 正常完成", async () => {
+    const runtime = createHtmlRuntime();
+    const { output: created } = await executeTool(
+      "create_html_session",
+      { html: "<p>skip</p>" },
+      runtime,
+      { openBrowser: false },
+    );
+    if (!isCreateOutput(created)) throw new Error("创建工具输出不符合预期");
+    expect(runtime.countLiveSessions()).toBe(1);
+  });
+
+  it("浏览器打开失败时清理 session 并返回稳定错误", async () => {
+    const runtime = createHtmlRuntime();
+    const attempt = executeTool("create_html_session", { html: "<p>fail</p>" }, runtime, {
+      openBrowser: async () => {
+        throw new Error("no display");
+      },
+    });
+    await expect(attempt).rejects.toThrow(
+      expect.objectContaining({ code: "BROWSER_OPEN_FAILED", status: 500 }),
+    );
+    expect(runtime.countLiveSessions()).toBe(0);
+    expect(runtime.countWaiters()).toBe(0);
   });
 });
 

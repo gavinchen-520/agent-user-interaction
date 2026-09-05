@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { PluginInput } from "@opencode-ai/plugin";
 import type { ToolContext } from "@opencode-ai/plugin/tool";
 
-import plugin from "../opencode-plugin/src";
+import { createHtmlInteractionPlugin } from "../opencode-plugin/src";
 
 const createPluginInput = (): PluginInput => ({
   client: {} as PluginInput["client"],
@@ -34,7 +34,7 @@ const parseOutput = (value: unknown): Record<string, unknown> => {
 
 describe("插件生命周期", () => {
   it("删除 OpenCode session 时结束其创建的所有 HTML session", async () => {
-    const hooks = await plugin(createPluginInput());
+    const hooks = await createHtmlInteractionPlugin({ openBrowser: false })(createPluginInput());
     const create = hooks.tool?.create_html_session;
     const end = hooks.tool?.end_html_session;
     if (!create || !end || !hooks.event) throw new Error("插件未注册预期 hooks");
@@ -58,7 +58,7 @@ describe("插件生命周期", () => {
   });
 
   it("释放插件时结束尚未删除的 HTML session", async () => {
-    const hooks = await plugin(createPluginInput());
+    const hooks = await createHtmlInteractionPlugin({ openBrowser: false })(createPluginInput());
     const create = hooks.tool?.create_html_session;
     const end = hooks.tool?.end_html_session;
     if (!create || !end || !hooks.dispose) throw new Error("插件未注册预期 hooks");
