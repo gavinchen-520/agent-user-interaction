@@ -1,6 +1,11 @@
-import { defaultSessionTtlMs, defaultTimeoutMs } from "./constants";
+import {
+  defaultMaxPayloadBytes,
+  defaultSessionTtlMs,
+  defaultTimeoutMs,
+} from "./constants";
 import {
   createRuntimeError,
+  isJsonSerializable,
   parseSubmissionWithLimit,
 } from "./protocol";
 import { createWaiterRegistry } from "./waiter";
@@ -21,7 +26,7 @@ import type {
 export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => {
   const sessions = new Map<string, RuntimeSession>();
   const waiters = createWaiterRegistry<string, SubmissionOutput>();
-  const maxPayloadBytes = options.maxPayloadBytes ?? 64 * 1024;
+  const maxPayloadBytes = options.maxPayloadBytes ?? defaultMaxPayloadBytes;
   const timeoutMs = options.defaultTimeoutMs ?? defaultTimeoutMs;
   const sessionTtlMs = options.sessionTtlMs ?? defaultSessionTtlMs;
   const baseUrl = options.baseUrl ?? "http://127.0.0.1:0";
@@ -40,10 +45,17 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     return session;
   };
 
+  const validateState = (state: unknown) => {
+    if (state !== undefined && !isJsonSerializable(state)) {
+      throw createRuntimeError("INVALID_ENVELOPE", "session state 必须是 JSON 数据", 400, "移除不可序列化值");
+    }
+  };
+
   const createSession = async (input: CreateSessionInput): Promise<CreateSessionOutput> => {
     if (typeof input.html !== "string" || input.html.length === 0) {
       throw createRuntimeError("INVALID_ENVELOPE", "HTML 不能为空", 400, "提供 HTML");
     }
+    validateState(input.initialState);
     const now = Date.now();
     const sessionId = makeId("html");
     const pageId = makeId("page");
@@ -55,7 +67,7 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
       html: input.html,
       state: input.initialState,
       token: makeId("token"),
-      status: "waiting",
+      status: "created",
       createdAt: now,
       updatedAt: now,
     };
@@ -63,17 +75,33 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     return { sessionId, pageId, pageVersion: 1, url: `${baseUrl}/session/${sessionId}` };
   };
 
+  const openSession = (sessionId: string): RuntimeSession => {
+    const session = getRequiredSession(sessionId);
+    if (session.status === "created") session.status = "opened";
+    return session;
+  };
+
+  const processSession = (sessionId: string): RuntimeSession => {
+    const session = getRequiredSession(sessionId);
+    if (session.status === "submitted") session.status = "processing";
+    return session;
+  };
+
   const waitSubmission = async (input: WaitSubmissionInput): Promise<SubmissionOutput> => {
     const session = getRequiredSession(input.sessionId);
     if (session.submittedPageVersion === session.pageVersion) {
       throw createRuntimeError("DUPLICATE_SUBMISSION", "当前页面已提交", 409, "等待新页面");
     }
-    session.status = "waiting";
+    if (session.status === "created") session.status = "opened";
+    if (session.status === "opened") session.status = "waiting";
     try {
-      return await waiters.register(input.sessionId, input.timeoutMs ?? timeoutMs);
+      return await waiters.register(input.sessionId, input.timeoutMs ?? timeoutMs, input.signal);
     } catch (error) {
       if (error instanceof Error && error.message === "等待超时") {
         throw createRuntimeError("WAIT_TIMEOUT", "等待提交超时", 408, "继续等待或更新页面");
+      }
+      if (error instanceof Error && error.message === "等待已取消") {
+        throw createRuntimeError("WAIT_CANCELLED", "等待提交已取消", 499, "重新等待或结束 session");
       }
       throw error;
     }
@@ -92,12 +120,22 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     session.status = "submitted";
     session.updatedAt = Date.now();
     const output = { kind: submission.kind, data: submission.data, metadata: submission.metadata, pageVersion: submission.pageVersion };
-    waiters.notifyFirst(session.sessionId, output);
+    waiters.notifyFirstAndClear(
+      session.sessionId,
+      output,
+      createRuntimeError("DUPLICATE_SUBMISSION", "当前页面已提交", 409, "等待新页面"),
+    );
+    processSession(session.sessionId);
     return { ok: true as const, submission };
   };
 
   const updateSession = async (input: UpdateSessionInput): Promise<UpdateSessionOutput> => {
     const session = getRequiredSession(input.sessionId);
+    if (typeof input.html !== "string" || input.html.length === 0) {
+      throw createRuntimeError("INVALID_ENVELOPE", "HTML 不能为空", 400, "提供 HTML");
+    }
+    validateState(input.state);
+    waiters.clear(input.sessionId, createRuntimeError("STALE_PAGE", "页面已更新", 409, "使用新页面提交"));
     session.pageId = makeId("page");
     session.pageVersion += 1;
     session.html = input.html;
@@ -117,5 +155,14 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
     return { ok: true };
   };
 
-  return { createSession, waitSubmission, updateSession, endSession, getSession: (id) => sessions.get(id), submitSubmission };
+  return {
+    createSession,
+    waitSubmission,
+    updateSession,
+    endSession,
+    getSession: (id) => sessions.get(id),
+    openSession,
+    processSession,
+    submitSubmission,
+  };
 };

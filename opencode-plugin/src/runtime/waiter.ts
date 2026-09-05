@@ -50,6 +50,12 @@ export const createWaiterRegistry = <K, T>() => {
     return entries.length;
   };
 
+  const notifyFirstAndClear = (key: K, value: T, reason: unknown): boolean => {
+    const notified = notifyFirst(key, value);
+    clear(key, reason);
+    return notified;
+  };
+
   const clear = (key: K, reason: unknown): number => {
     const entries = [...(waiters.get(key) ?? [])];
     entries.forEach((waiter) => {
@@ -63,6 +69,7 @@ export const createWaiterRegistry = <K, T>() => {
     register,
     notifyFirst,
     notifyAll,
+    notifyFirstAndClear,
     clear,
     count: (key?: K) => key === undefined ? [...waiters.values()].reduce((total, set) => total + set.size, 0) : waiters.get(key)?.size ?? 0,
   };

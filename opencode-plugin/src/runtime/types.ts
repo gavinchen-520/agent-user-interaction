@@ -17,7 +17,8 @@ export type RuntimeErrorCode =
   | "SESSION_ENDED"
   | "STALE_PAGE"
   | "DUPLICATE_SUBMISSION"
-  | "WAIT_TIMEOUT";
+  | "WAIT_TIMEOUT"
+  | "WAIT_CANCELLED";
 
 export type RuntimeError = Error & {
   code: RuntimeErrorCode;
@@ -51,6 +52,7 @@ export type CreateSessionOutput = {
 export type WaitSubmissionInput = {
   sessionId: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 };
 
 export type SubmissionOutput = {
@@ -101,5 +103,7 @@ export type HtmlRuntime = {
   updateSession(input: UpdateSessionInput): Promise<UpdateSessionOutput>;
   endSession(sessionId: string): Promise<EndSessionOutput>;
   getSession(sessionId: string): RuntimeSession | undefined;
+  openSession(sessionId: string): RuntimeSession;
+  processSession(sessionId: string): RuntimeSession;
   submitSubmission(value: unknown): Promise<{ ok: true; submission: SubmissionEnvelope }>;
 };

@@ -2,7 +2,6 @@ import {
   literal,
   number,
   object,
-  parse,
   safeParse,
   string,
   unknown,
@@ -40,12 +39,21 @@ const isJsonSerializable = (value: unknown, seen = new Set<object>()): boolean =
   if (typeof value !== "object") return false;
   if (seen.has(value)) return false;
   seen.add(value);
-  if (Array.isArray(value)) return value.every((item) => isJsonSerializable(item, seen));
+  if (Array.isArray(value)) {
+    const result = value.every((item) => isJsonSerializable(item, seen));
+    seen.delete(value);
+    return result;
+  }
   const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) return false;
-  return Object.entries(value).every(([key, item]) =>
+  if (prototype !== Object.prototype && prototype !== null) {
+    seen.delete(value);
+    return false;
+  }
+  const result = Object.entries(value).every(([key, item]) =>
     typeof key === "string" && isJsonSerializable(item, seen),
   );
+  seen.delete(value);
+  return result;
 };
 
 const parseEnvelope = (value: unknown, maxPayloadBytes = defaultMaxPayloadBytes): SubmissionEnvelope => {
