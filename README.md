@@ -41,6 +41,33 @@ end_html_session({ sessionId })
 
 支持环境：Bun 1.3+、已安装并启用本项目插件的 OpenCode。其他 agent、直接打开 HTML 文件、没有 OpenCode wrapper 的浏览器页面不在支持范围内。
 
+## 测试
+
+单元与集成测试（含 `tests/integration/runtime-flow.test.ts` 的 HTTP 全流程验证）：
+
+```bash
+bun run check
+```
+
+浏览器 E2E（真实 Chromium 驱动 wrapper -> sandbox iframe -> postMessage -> POST -> waiter 全链路）：
+
+```bash
+bunx playwright install chromium
+bunx playwright test tests/e2e/html-interaction.spec.ts --project=chromium
+```
+
+## 真实 OpenCode 验收
+
+前提：一个提供 plugin API 的 OpenCode 宿主必须已安装并启用本插件与 skill。验收步骤：
+
+1. 按上文完成安装，确认 `opencode plugin add ./opencode-plugin` 成功且 `html-interaction` skill 出现在 skill 列表。
+2. 在 OpenCode 中发起一个明确需要视觉交互的任务，例如："创建一个 HTML 页面让我选择部署环境（staging/production），并在确认后把我的选择告诉你"。
+3. 验证模型调用 `create_html_session` 并返回 session URL，浏览器（或可手动打开 URL 的环境）展示 wrapper 页面。
+4. 在独立浏览器窗口的页面中选择选项并点击提交；验证 `wait_html_submission` 返回结构化数据（`kind`、`data`、`metadata`），模型能复述你的选择。
+5. 请求第二个阶段（例如追加参数确认页）；验证模型调用 `update_html_session`，刷新后旧页面提交被拒绝（409 `STALE_PAGE`），新页面提交成功。
+6. 要求模型结束交互；验证 `end_html_session` 返回成功，再次结束不产生副作用。
+7. 运行 `bun run check`，确认 TypeScript、单元与集成测试全部通过。
+
 ## 故障排查
 
 - 浏览器未打开：确认 OpenCode 插件已构建并启用，且运行环境允许 wrapper 打开浏览器。

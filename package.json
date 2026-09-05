@@ -5,10 +5,11 @@
     "opencode-plugin"
   ],
   "scripts": {
-    "test": "bun test",
+    "test": "bun test --path-ignore-patterns \"tests/e2e/**\"",
+    "test:e2e": "bunx playwright test",
     "typecheck": "bun run --cwd opencode-plugin typecheck",
     "build": "bun run --cwd opencode-plugin build",
-    "check": "bun run typecheck && bun test"
+    "check": "bun run typecheck && bun run test"
   },
   "devDependencies": {
     "@playwright/test": "latest",

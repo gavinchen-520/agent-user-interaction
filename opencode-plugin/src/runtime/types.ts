@@ -108,4 +108,6 @@ export type HtmlRuntime = {
   submitSubmission(value: unknown): Promise<{ ok: true; submission: SubmissionEnvelope }>;
   listSessions(): RuntimeSession[];
   setBaseUrl(baseUrl: string): void;
+  countWaiters(sessionId?: string): number;
+  countLiveSessions(): number;
 };

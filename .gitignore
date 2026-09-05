@@ -3,3 +3,5 @@ dist/
 .worktrees/
 .superpowers/
 .DS_Store
+test-results/
+playwright-report/

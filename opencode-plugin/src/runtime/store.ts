@@ -23,6 +23,11 @@ import type {
   WaitSubmissionInput,
 } from "./types";
 
+export const terminalStatuses = ["ended", "expired", "failed", "cancelled"] as const;
+
+export const isTerminalStatus = (status: RuntimeSession["status"]): boolean =>
+  (terminalStatuses as readonly string[]).includes(status);
+
 export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => {
   const sessions = new Map<string, RuntimeSession>();
   const sessionOutputs = new Map<string, CreateSessionOutput>();
@@ -35,7 +40,7 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
   const getRequiredSession = (sessionId: string) => {
     const session = sessions.get(sessionId);
     if (!session) throw createRuntimeError("SESSION_NOT_FOUND", "session 不存在", 404, "检查 sessionId");
-    if (["ended", "expired", "failed", "cancelled"].includes(session.status)) {
+    if (isTerminalStatus(session.status)) {
       throw createRuntimeError("SESSION_ENDED", "session 已结束", 410, "创建或使用新的 session");
     }
     if (Date.now() - session.createdAt > sessionTtlMs) {
@@ -172,5 +177,7 @@ export const createHtmlRuntime = (options: RuntimeOptions = {}): HtmlRuntime => 
       baseUrl = value.replace(/\/$/, "");
       sessionOutputs.forEach((output) => { output.url = `${baseUrl}/session/${output.sessionId}`; });
     },
+    countWaiters: (sessionId?: string) => waiters.count(sessionId),
+    countLiveSessions: () => [...sessions.values()].filter((session) => !isTerminalStatus(session.status)).length,
   };
 };
