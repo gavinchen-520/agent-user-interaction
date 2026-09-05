@@ -34,6 +34,7 @@ type HostMessage =
       pageVersion: number;
       token: string;
     }
+  | { type: "waiting"; sessionId: string }
   | { type: "submission"; kind: string; data: unknown; metadata: unknown; pageVersion: number }
   | { type: "wait-error"; code: string; message: string }
   | { type: "updated"; pageId: string; pageVersion: number }
@@ -80,11 +81,19 @@ class RuntimeHostAgent {
     return (await this.waitFor((message) => message.type === "ready")) as ReadyMessage;
   }
 
-  waitSubmission(timeoutMs: number): Promise<SubmissionMessage> {
+  // acked 在 host 确认 waiter 注册完成后 resolve；测试必须等 acked 再驱动页面点击
+  waitSubmission(timeoutMs: number): {
+    acked: Promise<string>;
+    result: Promise<SubmissionMessage>;
+  } {
     this.send({ type: "wait", timeoutMs });
-    return this.waitFor(
+    const acked = this.waitFor((message) => message.type === "waiting").then(
+      (message) => (message as { sessionId: string }).sessionId,
+    );
+    const result = this.waitFor(
       (message) => message.type === "submission" || message.type === "wait-error",
     ) as Promise<SubmissionMessage>;
+    return { acked, result };
   }
 
   async update(html: string): Promise<Extract<HostMessage, { type: "updated" }>> {
@@ -161,11 +170,12 @@ test("浏览器完成两阶段交互并拒绝旧页面提交", async ({ browser 
     () => (window as { __violation?: string }).__violation === "connect-src",
   );
 
-  // 第一阶段：填写表单、点击提交、等待 runtime 收到数据
+  // 第一阶段：填写表单、等 host 确认 waiter 注册后再点击提交
   await frame.locator("#name").fill("Ada");
   const firstWait = host.waitSubmission(10_000);
+  await expect(firstWait.acked).resolves.toBe(sessionId);
   await frame.locator("#submit").click();
-  await expect(firstWait).resolves.toMatchObject({
+  await expect(firstWait.result).resolves.toMatchObject({
     type: "submission",
     kind: "phase-1",
     pageVersion: 1,
@@ -212,8 +222,9 @@ test("浏览器完成两阶段交互并拒绝旧页面提交", async ({ browser 
   await expect(secondFrame.locator("#phase")).toHaveText("阶段 2");
   await secondFrame.locator("#choice").fill("方案 B");
   const secondWait = host.waitSubmission(10_000);
+  await expect(secondWait.acked).resolves.toBe(sessionId);
   await secondFrame.locator("#submit").click();
-  await expect(secondWait).resolves.toMatchObject({
+  await expect(secondWait.result).resolves.toMatchObject({
     type: "submission",
     kind: "phase-2",
     pageVersion: 2,

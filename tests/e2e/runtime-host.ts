@@ -37,18 +37,19 @@ const handleCommand = async (command: HostCommand): Promise<void> => {
       return;
     }
     case "wait": {
-      // 只注册等待，不阻塞后续命令；结果异步写回 stdout
-      runtime
-        .waitSubmission({ sessionId: getActiveSessionId(), timeoutMs: command.timeoutMs })
-        .then(
-          (submission) => writeMessage({ type: "submission", ...submission }),
-          (error: unknown) =>
-            writeMessage({
-              type: "wait-error",
-              code: (error as { code?: string }).code ?? "UNKNOWN",
-              message: error instanceof Error ? error.message : String(error),
-            }),
-        );
+      const sessionId = getActiveSessionId();
+      // waitSubmission 的同步段完成 waiter 注册，注册后回写 ack，供测试确认后再驱动页面点击
+      const pendingWait = runtime.waitSubmission({ sessionId, timeoutMs: command.timeoutMs });
+      writeMessage({ type: "waiting", sessionId });
+      pendingWait.then(
+        (submission) => writeMessage({ type: "submission", ...submission }),
+        (error: unknown) =>
+          writeMessage({
+            type: "wait-error",
+            code: (error as { code?: string }).code ?? "UNKNOWN",
+            message: error instanceof Error ? error.message : String(error),
+          }),
+      );
       return;
     }
     case "update": {
@@ -90,7 +91,16 @@ for await (const chunk of process.stdin) {
     const line = pending.slice(0, newlineIndex);
     pending = pending.slice(newlineIndex + 1);
     if (line.trim().length > 0) {
-      await handleCommand(JSON.parse(line) as HostCommand);
+      // 命令异常也回写结构化 wait-error，避免测试进程悬挂等待永远不会到达的响应
+      try {
+        await handleCommand(JSON.parse(line) as HostCommand);
+      } catch (error) {
+        writeMessage({
+          type: "wait-error",
+          code: "HOST_ERROR",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
     newlineIndex = pending.indexOf("\n");
   }
