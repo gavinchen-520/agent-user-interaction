@@ -134,3 +134,54 @@ describe("metaStore pending", () => {
     expect((await store.read("html_a"))?.sessionId).toBe("html_a");
   });
 });
+
+describe("metaStore corrupt purge", () => {
+  it("read 校验失败时从 backing 删除损坏 meta", async () => {
+    const backing = new Map<string, unknown>();
+    const store = createMetaStore(memoryStorage(backing));
+    await backing.set("session/html_bad/meta", { nope: true });
+    expect(await store.read("html_bad")).toBeUndefined();
+    expect(backing.has("session/html_bad/meta")).toBe(false);
+  });
+
+  it("read 对缺失 meta 不误删 backing", async () => {
+    const backing = new Map<string, unknown>();
+    const store = createMetaStore(memoryStorage(backing));
+    expect(await store.read("html_missing")).toBeUndefined();
+    expect(backing.size).toBe(0);
+  });
+
+  it("scanAll 删除损坏 meta 及 sibling pending，保留有效项", async () => {
+    const backing = new Map<string, unknown>();
+    const store = createMetaStore(memoryStorage(backing));
+    await store.write(baseMeta("html_good"));
+    await backing.set("session/html_bad/meta", { broken: true });
+    await backing.set("session/html_bad/pending", {
+      kind: "k",
+      data: {},
+      metadata: {},
+      pageVersion: 1,
+    });
+    const ids = (await store.scanAll()).map((m) => m.sessionId);
+    expect(ids).toEqual(["html_good"]);
+    expect(backing.has("session/html_bad/meta")).toBe(false);
+    expect(backing.has("session/html_bad/pending")).toBe(false);
+    expect(backing.has("session/html_good/meta")).toBe(true);
+  });
+
+  it("storage.remove 拒绝时 read 与 scanAll 仍不抛且保持 total", async () => {
+    const backing = new Map<string, unknown>();
+    const base = memoryStorage(backing);
+    const storage: StorageDomain = {
+      ...base,
+      remove: async () => {
+        throw new Error("remove failed");
+      },
+    };
+    const store = createMetaStore(storage);
+    await store.write(baseMeta("html_good"));
+    await backing.set("session/html_bad/meta", { broken: true });
+    expect(await store.read("html_bad")).toBeUndefined();
+    expect((await store.scanAll()).map((m) => m.sessionId)).toEqual(["html_good"]);
+  });
+});

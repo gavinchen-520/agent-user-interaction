@@ -96,35 +96,59 @@ const parsePending = (value: unknown): PendingSubmission | undefined => {
   return result.output;
 };
 
-export const createMetaStore = (storage: StorageDomain): MetaStore => ({
-  read: async (sessionId) => parseMeta(await storage.get(metaKey(sessionId))),
-  write: async (meta) => {
-    await storage.set(metaKey(meta.sessionId), meta);
-  },
-  remove: async (sessionId) => {
-    await storage.remove(metaKey(sessionId));
-  },
-  scanAll: async () => {
-    const metas: SessionMeta[] = [];
-    let after: string | undefined;
-    do {
-      const page = await storage.scan(
-        after === undefined ? { prefix: scanPrefix } : { prefix: scanPrefix, after },
-      );
-      for (const entry of page.entries) {
-        if (!entry.key.endsWith(metaSuffix)) continue;
-        const meta = parseMeta(entry.value);
-        if (meta) metas.push(meta);
-      }
-      after = page.next;
-    } while (after);
-    return metas;
-  },
-  readPending: async (sessionId) => parsePending(await storage.get(pendingKey(sessionId))),
-  writePending: async (sessionId, pending) => {
-    await storage.set(pendingKey(sessionId), pending);
-  },
-  removePending: async (sessionId) => {
-    await storage.remove(pendingKey(sessionId));
-  },
-});
+// 清理失败不得影响读取：损坏值仍按 undefined 处理
+export const createMetaStore = (storage: StorageDomain): MetaStore => {
+  const safeRemove = async (key: string): Promise<void> => {
+    try {
+      await storage.remove(key);
+    } catch {
+      // 忽略清理失败，读取语义保持 total
+    }
+  };
+
+  return {
+    read: async (sessionId) => {
+      const value = await storage.get(metaKey(sessionId));
+      const meta = parseMeta(value);
+      // 值存在但校验失败 => 损坏项，从存储中清除
+      if (meta === undefined && value !== undefined) await safeRemove(metaKey(sessionId));
+      return meta;
+    },
+    write: async (meta) => {
+      await storage.set(metaKey(meta.sessionId), meta);
+    },
+    remove: async (sessionId) => {
+      await storage.remove(metaKey(sessionId));
+    },
+    scanAll: async () => {
+      const metas: SessionMeta[] = [];
+      let after: string | undefined;
+      do {
+        const page = await storage.scan(
+          after === undefined ? { prefix: scanPrefix } : { prefix: scanPrefix, after },
+        );
+        for (const entry of page.entries) {
+          if (!entry.key.endsWith(metaSuffix)) continue;
+          const meta = parseMeta(entry.value);
+          if (meta) {
+            metas.push(meta);
+            continue;
+          }
+          // 损坏 meta：连同同名 pending 一并清理，避免存储泄漏（仅触碰本次扫描到的键）
+          await safeRemove(entry.key);
+          const sessionId = entry.key.slice(scanPrefix.length, -metaSuffix.length);
+          if (sessionId.length > 0) await safeRemove(pendingKey(sessionId));
+        }
+        after = page.next;
+      } while (after);
+      return metas;
+    },
+    readPending: async (sessionId) => parsePending(await storage.get(pendingKey(sessionId))),
+    writePending: async (sessionId, pending) => {
+      await storage.set(pendingKey(sessionId), pending);
+    },
+    removePending: async (sessionId) => {
+      await storage.remove(pendingKey(sessionId));
+    },
+  };
+};
