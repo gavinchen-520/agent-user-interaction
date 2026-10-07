@@ -1,0 +1,20 @@
+{
+  "name": "@agent-ui-interaction/opencode-v2-plugin",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.24",
+    "valibot": "^1.2.0"
+  }
+}
