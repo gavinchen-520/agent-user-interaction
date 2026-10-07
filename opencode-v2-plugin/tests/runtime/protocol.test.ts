@@ -4,9 +4,10 @@ import {
   createSubmissionEnvelope,
   parseSubmission,
 } from "../../src/runtime/protocol";
+import type { SubmissionEnvelope } from "../../src/runtime/types";
 
 describe("提交协议", () => {
-  const validEnvelope = {
+  const validEnvelope: SubmissionEnvelope = {
     sessionId: "session-1",
     pageId: "page-1",
     pageVersion: 1,
