@@ -1,9 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-  buildWrapperHtml,
-  createWrapperMessageHandler,
-} from "../../src/runtime/wrapper";
+import { buildWrapperHtml, createWrapperMessageHandler } from "../../src/runtime/wrapper";
 
 describe("browser wrapper message bridge", () => {
   it("只接受 iframe 发来的首个有效 html-submit 消息", async () => {

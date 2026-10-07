@@ -1,9 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-  createSubmissionEnvelope,
-  parseSubmission,
-} from "../../src/runtime/protocol";
+import { createSubmissionEnvelope, parseSubmission } from "../../src/runtime/protocol";
 import type { SubmissionEnvelope } from "../../src/runtime/types";
 
 describe("提交协议", () => {
