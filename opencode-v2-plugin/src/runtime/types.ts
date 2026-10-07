@@ -1,3 +1,6 @@
+import type { MetaStore } from "./metaStore";
+import type { PageStore } from "./pageStore";
+
 export type SessionStatus =
   | "created"
   | "opened"
@@ -120,7 +123,8 @@ export type RuntimeOptions = {
   sessionTtlMs?: number;
   cleanupIntervalMs?: number;
   baseUrl?: string;
-  storage?: StorageConfig;
+  metaStore: MetaStore;
+  pageStore: PageStore;
 };
 
 export type HtmlRuntime = {
@@ -136,6 +140,8 @@ export type HtmlRuntime = {
   setBaseUrl(baseUrl: string): void;
   countWaiters(sessionId?: string): number;
   countLiveSessions(): number;
+  // 从 metaStore/pageStore 重建内存索引，清理损坏/终态/过期/孤儿项
+  restore(): Promise<void>;
   // 释放进程内资源（清内存索引与 waiter、停止周期清理），不删除磁盘文件
   dispose(): void;
 };
