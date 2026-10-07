@@ -9,6 +9,8 @@ export {
   parseSubmission,
   parseSubmissionWithLimit,
 } from "./protocol";
+export type { RuntimeServer, ServerOptions } from "./server";
+export { createRuntimeServer } from "./server";
 export { createHtmlRuntime, isTerminalStatus, terminalStatuses } from "./store";
 export type * from "./types";
 export { createWaiterRegistry } from "./waiter";
