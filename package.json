@@ -10,6 +10,7 @@
   "scripts": {
     "test": "bun test --path-ignore-patterns \"tests/e2e/**\"",
     "test:e2e": "bunx playwright test",
+    "test:v2": "bun run --cwd opencode-v2-plugin test",
     "typecheck": "bun run --cwd opencode-plugin typecheck",
     "typecheck:v2": "bun run --cwd opencode-v2-plugin typecheck",
     "build": "bun run --cwd opencode-plugin build",
