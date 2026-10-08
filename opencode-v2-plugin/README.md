@@ -34,7 +34,7 @@ V2 使用 `plugins` **数组 + 对象形式**（区别于 V1 的 `plugin` 元组
 }
 ```
 
-省略 `options` 即使用全部默认值。安装后重启 OpenCode，`html-interaction` skill 与 `create_html_session` 等工具即可用。
+省略 `options` 即使用全部默认值。安装后重启 OpenCode，`create_html_session` 等工具即可用。注意本包只提供插件，**不含 skill**；模型工作流说明是单独的 `skills/html-interaction` 单元，需另行安装。
 
 ## 工具
 
@@ -72,6 +72,12 @@ V2 使用 `plugins` **数组 + 对象形式**（区别于 V1 的 `plugin` 元组
 | `maxInlineHtmlBytes` | `65536` | 内联 `html` 上限（64 KiB） |
 | `maxPageFileBytes` | `3145728` | `htmlFile` 页面上限（3 MiB） |
 | `pageDir` | `os.tmpdir()/opencode-html-sessions` | 页面正文临时目录 |
+
+## 已知限制
+
+- 页面正文始终落盘到 `pageDir`（OS 临时目录）：**没有 V1 的 `storage.mode`（memory/disk）开关**，元数据固定存 `ctx.storage`。OS 可能清理临时目录；进程异常退出遗留的目录会在下次 `restore` 时按元数据缺失回收。
+- 依赖 Bun 宿主（`Bun.serve`、`Bun.file`，Bun `>=1.3.14`）。
+- 本包只提供插件，不含 skill；模型工作流说明见单独的 `skills/html-interaction` 单元。
 
 ## 测试
 

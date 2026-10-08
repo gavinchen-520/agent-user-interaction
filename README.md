@@ -156,7 +156,7 @@ end_html_session({ sessionId })
 
 ## OpenCode V2 插件（可选）
 
-仓库另含 `opencode-v2-plugin/`：面向 OpenCode V2 插件 API 的原生精简实现，插件 id 同为 `agent-ui-interaction`，工具与 V1 一致，但配置改用具名 `plugins` 数组对象形式，元数据存 `ctx.storage`、页面存临时目录：
+仓库另含 `opencode-v2-plugin/`：面向 OpenCode V2 插件 API 的原生精简实现（插件 id 为 `agent-ui-interaction`），工具与 V1 一致，但配置改用具名 `plugins` 数组对象形式，元数据存 `ctx.storage`、页面存临时目录。它只提供插件、不含 skill（skill 仍是单独的 `skills/html-interaction` 单元）：
 
 ```jsonc
 {
