@@ -135,6 +135,21 @@ describe("createHtmlSessionTools", () => {
     expect(ended).toEqual({ ok: true });
   });
 
+  test("浏览器打开失败时抛 BROWSER_OPEN_FAILED 并清理会话", async () => {
+    const { runtime: isolated } = makeRuntime();
+    const [create] = createHtmlSessionTools(isolated, {
+      ...cfg,
+      openBrowser: async () => {
+        throw new Error("no display");
+      },
+    });
+    await expect(create.execute({ html: "<html></html>" }, ctx)).rejects.toMatchObject({
+      code: "BROWSER_OPEN_FAILED",
+    });
+    expect(isolated.countLiveSessions()).toBe(0);
+    isolated.dispose();
+  });
+
   test("wait 使用 context.signal 取消", async () => {
     const [create, wait] = createHtmlSessionTools(runtime, cfg);
     const created = JSON.parse((await create.execute({ html: "<html></html>" }, ctx)).content);

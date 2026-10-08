@@ -8,7 +8,7 @@ import { createRuntimeError } from "./runtime/protocol";
 import type { HtmlRuntime } from "./runtime/types";
 
 export type ToolConfig = {
-  openBrowser: boolean;
+  openBrowser: boolean | ((url: string) => Promise<void>);
   rootDirectory: string;
   maxInlineHtmlBytes: number;
   maxPageFileBytes: number;
@@ -146,9 +146,10 @@ const endInput = {
 export const createHtmlSessionTools = (runtime: HtmlRuntime, config: ToolConfig): ToolInfo[] => {
   // 打开失败时清理 session，避免留下不可达的会话（沿用 V1 语义）
   const openSessionBrowser = async (url: string, sessionId: string): Promise<void> => {
-    if (!config.openBrowser) return;
+    if (config.openBrowser === false) return;
+    const open = typeof config.openBrowser === "function" ? config.openBrowser : openBrowser;
     try {
-      await openBrowser(url);
+      await open(url);
     } catch (error) {
       await runtime.endSession(sessionId);
       const reason = error instanceof Error ? error.message : String(error);
