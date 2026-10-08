@@ -56,35 +56,44 @@ const setup = async (ctx: PluginContext): Promise<Plugin.Cleanup> => {
     openBrowser: false,
   });
 
-  await runtime.restore();
-
-  await ctx.tool.transform((editor) => {
-    const tools = createHtmlSessionTools(runtime, {
-      openBrowser: opts.openBrowser,
-      rootDirectory: ctx.location.directory,
-      maxInlineHtmlBytes: opts.maxInlineHtmlBytes,
-      maxPageFileBytes: opts.maxPageFileBytes,
-      // 与 runtime 共享同一 maxPayloadBytes，避免两处上限漂移
-      maxPayloadBytes: opts.maxPayloadBytes,
-    });
-    for (const tool of tools) editor.add(tool as unknown as ToolEditorItem);
-  });
-
-  // 分离的订阅循环：opencode 会话删除时结束其关联的 html 会话
   const controller = new AbortController();
-  void (async () => {
-    try {
-      for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
-        if (event.type !== "session.deleted") continue;
-        const { sessionID } = event.data;
-        for (const session of runtime.listSessions()) {
-          if (session.opencodeSessionId === sessionID) await runtime.endSession(session.sessionId);
+  try {
+    await runtime.restore();
+
+    await ctx.tool.transform((editor) => {
+      const tools = createHtmlSessionTools(runtime, {
+        openBrowser: opts.openBrowser,
+        rootDirectory: ctx.location.directory,
+        maxInlineHtmlBytes: opts.maxInlineHtmlBytes,
+        maxPageFileBytes: opts.maxPageFileBytes,
+        // 与 runtime 共享同一 maxPayloadBytes，避免两处上限漂移
+        maxPayloadBytes: opts.maxPayloadBytes,
+      });
+      for (const tool of tools) editor.add(tool as unknown as ToolEditorItem);
+    });
+
+    // 分离的订阅循环：opencode 会话删除时结束其关联的 html 会话
+    void (async () => {
+      try {
+        for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+          if (event.type !== "session.deleted") continue;
+          const { sessionID } = event.data;
+          for (const session of runtime.listSessions()) {
+            if (session.opencodeSessionId === sessionID)
+              await runtime.endSession(session.sessionId);
+          }
         }
+      } catch {
+        // abort 或传输错误都终止循环，无需上抛
       }
-    } catch {
-      // abort 或传输错误都终止循环，无需上抛
-    }
-  })();
+    })();
+  } catch (error) {
+    // 启动阶段失败（如 restore 抛错）：回收已绑定端口与进程内资源，再上抛
+    controller.abort();
+    runtime.dispose();
+    await server.stop(true);
+    throw error;
+  }
 
   let cleaned = false;
   return async () => {

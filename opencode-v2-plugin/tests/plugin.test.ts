@@ -156,29 +156,51 @@ test("cleanup 幂等且中止事件订阅", async () => {
   await cleanup?.();
 });
 
-test("session.deleted 事件结束匹配 opencodeSessionId 的会话", async () => {
+test("session.deleted 事件只结束匹配 opencodeSessionId 的会话", async () => {
   const { ctx, tools, storage, events } = makeFakeContext();
   const cleanup = await createPlugin().setup(ctx);
 
   const create = toolByName(tools, "create_html_session");
-  const created = JSON.parse(
-    (
-      await create.execute(
-        { html: "<html></html>" },
-        {
-          sessionID: "ses_x",
-          signal: new AbortController().signal,
-          progress: async () => {},
-        },
-      )
-    ).content,
-  ) as { sessionId: string };
-  expect(created.sessionId).toStartWith("html_");
+  const executeContext = (sessionID: string) => ({
+    sessionID,
+    signal: new AbortController().signal,
+    progress: async () => {},
+  });
 
-  expect((await storage.scan({ prefix: "session/" })).entries.length).toBe(1);
+  const matching = JSON.parse(
+    (await create.execute({ html: "<html></html>" }, executeContext("ses_x"))).content,
+  ) as { sessionId: string };
+  const survivor = JSON.parse(
+    (await create.execute({ html: "<html></html>" }, executeContext("ses_y"))).content,
+  ) as { sessionId: string };
+  expect(matching.sessionId).toStartWith("html_");
+  expect(survivor.sessionId).not.toBe(matching.sessionId);
+
+  expect((await storage.scan({ prefix: "session/" })).entries.length).toBe(2);
 
   events.push({ type: "session.deleted", data: { sessionID: "ses_x" } });
-  await waitFor(async () => (await storage.scan({ prefix: "session/" })).entries.length === 0);
+  await waitFor(async () => (await storage.scan({ prefix: "session/" })).entries.length === 1);
 
+  // 仅匹配会话被结束，非匹配会话仍在存储中存活
+  const survivors = (await storage.scan({ prefix: "session/" })).entries;
+  const survivingMeta = survivors[0]?.value as { opencodeSessionId?: string } | undefined;
+  expect(survivingMeta?.opencodeSessionId).toBe("ses_y");
+
+  await cleanup?.();
+});
+
+test("runtime.restore 失败时 setup 拒绝并回收资源，不悬挂", async () => {
+  const storage = memoryStorage();
+  storage.scan = async () => {
+    throw new Error("scan boom");
+  };
+  const { ctx } = makeFakeContext({ storage });
+
+  await expect(createPlugin().setup(ctx)).rejects.toThrow("scan boom");
+
+  // 订阅尚未启动；关键验证是不悬挂且后续全新上下文仍可正常完成 setup
+  const fresh = makeFakeContext();
+  const cleanup = await createPlugin().setup(fresh.ctx);
+  expect(fresh.tools.length).toBe(4);
   await cleanup?.();
 });
