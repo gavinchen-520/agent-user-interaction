@@ -119,7 +119,8 @@ export const createHtmlRuntime = (options: RuntimeOptions): HtmlRuntime => {
         "创建新的 session",
       );
       // getRequiredSession 保持同步；落盘清理按最优努力进行，周期清理/restore 兜底
-      void removePersisted(sessionId);
+      // 清理失败不得在宿主进程中冒泡为 unhandled rejection
+      void removePersisted(sessionId).catch(() => {});
       clearSessionMemory(sessionId, expired);
       throw expired;
     }
@@ -372,7 +373,8 @@ export const createHtmlRuntime = (options: RuntimeOptions): HtmlRuntime => {
     }
   };
   const cleanupTimer = setInterval(() => {
-    void cleanupExpiredSessions();
+    // 周期清理按最优努力进行：失败不得在宿主进程中冒泡为 unhandled rejection
+    void cleanupExpiredSessions().catch(() => {});
   }, sessionCleanupIntervalMs);
 
   const dispose = (): void => {
@@ -403,7 +405,7 @@ export const createHtmlRuntime = (options: RuntimeOptions): HtmlRuntime => {
           410,
           "创建新的 session",
         );
-        void removePersisted(id);
+        void removePersisted(id).catch(() => {});
         clearSessionMemory(id, expired);
         return undefined;
       }

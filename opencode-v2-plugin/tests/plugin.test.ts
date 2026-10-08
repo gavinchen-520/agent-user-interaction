@@ -204,3 +204,76 @@ test("runtime.restore 失败时 setup 拒绝并回收资源，不悬挂", async 
   expect(fresh.tools.length).toBe(4);
   await cleanup?.();
 });
+
+test("setup 起的真实 server 完成 create → page → submit → wait → end 闭环", async () => {
+  const { ctx, tools } = makeFakeContext();
+  const cleanup = await createPlugin().setup(ctx);
+
+  const executeContext = {
+    sessionID: "ses_loop",
+    signal: new AbortController().signal,
+    progress: async () => {},
+  };
+
+  // create_html_session：沙箱合法的最小页面
+  const create = toolByName(tools, "create_html_session");
+  const created = JSON.parse(
+    (
+      await create.execute(
+        { html: "<!doctype html><html><body><p>闭环页面</p></body></html>" },
+        executeContext,
+      )
+    ).content,
+  ) as { sessionId: string; pageId: string; pageVersion: number; url: string };
+  expect(created.sessionId).toStartWith("html_");
+
+  // 页面路由返回正文
+  const page = await fetch(`${created.url}/page`);
+  expect(page.status).toBe(200);
+  expect(await page.text()).toContain("闭环页面");
+
+  // wrapper 内嵌 config 携带 runtime token，提交必须带上
+  const wrapper = await fetch(created.url);
+  expect(wrapper.status).toBe(200);
+  const token = (await wrapper.text()).match(/"token":"([^"]+)"/)?.[1];
+  expect(typeof token).toBe("string");
+  expect(token?.length).toBeGreaterThan(0);
+
+  // POST submit：真实 server 路由 + runtime token 鉴权
+  const response = await fetch(`${created.url}/submit`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-runtime-token": token ?? "",
+    },
+    body: JSON.stringify({
+      sessionId: created.sessionId,
+      pageId: created.pageId,
+      pageVersion: created.pageVersion,
+      kind: "confirm",
+      data: { ok: true },
+      metadata: {},
+      protocolVersion: 1,
+    }),
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ ok: true });
+
+  // wait_html_submission：消费刚提交的结果
+  const wait = toolByName(tools, "wait_html_submission");
+  const submission = JSON.parse(
+    (await wait.execute({ sessionId: created.sessionId, timeoutMs: 1_000 }, executeContext))
+      .content,
+  ) as { kind: string; data: unknown };
+  expect(submission.kind).toBe("confirm");
+  expect(submission.data).toEqual({ ok: true });
+
+  // end_html_session：结束会话
+  const end = toolByName(tools, "end_html_session");
+  const ended = JSON.parse(
+    (await end.execute({ sessionId: created.sessionId }, executeContext)).content,
+  ) as { ok: boolean };
+  expect(ended.ok).toBe(true);
+
+  await cleanup?.();
+});

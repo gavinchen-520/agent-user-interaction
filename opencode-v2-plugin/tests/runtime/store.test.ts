@@ -383,6 +383,71 @@ describe("HTML session runtime", () => {
     second.dispose();
   });
 
+  it("getSession/getRequiredSession 过期清理失败不产生 unhandled rejection", async () => {
+    const storage = memoryStorage(new Map());
+    const metaStore = createMetaStore(storage);
+    // 模拟落盘清理失败：remove 拒绝，覆盖 getSession/getRequiredSession 两条 void 路径
+    metaStore.remove = async () => {
+      throw new Error("remove boom");
+    };
+    const pageStore = createPageStore(mkdtempSync(join(tmpdir(), "v2-store-")));
+    // 周期清理拉长，隔离出同步 fire-and-forget 路径
+    const runtime = createHtmlRuntime({
+      metaStore,
+      pageStore,
+      sessionTtlMs: 1,
+      cleanupIntervalMs: 60_000,
+    });
+    const first = await runtime.createSession({ html: "<p>a</p>" });
+    const second = await runtime.createSession({ html: "<p>b</p>" });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const rejections: unknown[] = [];
+    const onUnhandled = (reason: unknown) => rejections.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      // getSession 的过期清理分支
+      expect(runtime.getSession(first.sessionId)).toBeUndefined();
+      // getRequiredSession 的过期清理分支（session 仍在内存中）
+      await expect(
+        runtime.waitSubmission({ sessionId: second.sessionId, timeoutMs: 1 }),
+      ).rejects.toMatchObject({ code: "SESSION_ENDED" });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      runtime.dispose();
+    }
+  });
+
+  it("周期清理失败不产生 unhandled rejection", async () => {
+    const storage = memoryStorage(new Map());
+    const metaStore = createMetaStore(storage);
+    metaStore.remove = async () => {
+      throw new Error("remove boom");
+    };
+    const pageStore = createPageStore(mkdtempSync(join(tmpdir(), "v2-store-")));
+    const runtime = createHtmlRuntime({
+      metaStore,
+      pageStore,
+      sessionTtlMs: 1,
+      cleanupIntervalMs: 2,
+    });
+    await runtime.createSession({ html: "<p>x</p>" });
+
+    const rejections: unknown[] = [];
+    const onUnhandled = (reason: unknown) => rejections.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      // 让周期清理多次命中过期 session（内存首轮 + 磁盘残留）
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      runtime.dispose();
+    }
+  });
+
   it("cancel 与 timeout 区分", async () => {
     const { runtime } = makeRuntime({ defaultTimeoutMs: 5_000 });
     const a = await runtime.createSession({ html: "<html></html>" });
