@@ -76,6 +76,14 @@ describe("createHtmlSessionTools", () => {
     expect(out.pageVersion).toBe(1);
   });
 
+  test("create_html_session 记录 context.sessionID 为 opencodeSessionId", async () => {
+    const [create] = createHtmlSessionTools(runtime, cfg);
+    const created = JSON.parse(
+      (await create.execute({ html: "<html></html>" }, { ...ctx, sessionID: "ses_x" })).content,
+    );
+    expect(runtime.getSession(created.sessionId)?.opencodeSessionId).toBe("ses_x");
+  });
+
   test("html 与 htmlFile 互斥", async () => {
     const [create] = createHtmlSessionTools(runtime, cfg);
     await expect(

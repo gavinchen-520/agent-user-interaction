@@ -24,7 +24,12 @@ export type ToolInfo = {
   input: Record<string, unknown>;
   execute(
     input: any,
-    context: { signal: AbortSignal; progress: (message: any) => Promise<void> },
+    context: {
+      signal: AbortSignal;
+      progress: (message: any) => Promise<void>;
+      // V2 ToolContext 携带发起工具调用的 opencode sessionID；用于把 html 会话关联回 opencode 会话
+      sessionID?: string;
+    },
   ): Promise<{ content: string }>;
 };
 
@@ -160,12 +165,13 @@ export const createHtmlSessionTools = (runtime: HtmlRuntime, config: ToolConfig)
     name: "create_html_session",
     description: "创建一个可交互的 HTML 页面会话。",
     input: createInput,
-    execute: async (input) => {
+    execute: async (input, context) => {
       const html = resolveHtml(input.html, input.htmlFile, config);
       const output = await runtime.createSession({
         title: input.title,
         html: injectPageRuntime(html, { maxPayloadBytes: config.maxPayloadBytes }),
         initialState: input.initialState,
+        opencodeSessionId: context.sessionID,
       });
       await openSessionBrowser(output.url, output.sessionId);
       return { content: toJson(output) };
