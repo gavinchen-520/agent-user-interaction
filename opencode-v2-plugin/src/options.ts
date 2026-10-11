@@ -2,6 +2,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as v from "valibot";
 
+import {
+  defaultMaxInlineHtmlBytes,
+  defaultMaxPageFileBytes,
+  defaultMaxPayloadBytes,
+  defaultSessionTtlMs,
+  defaultTimeoutMs,
+} from "./runtime/constants";
+
 export type ResolvedOptions = {
   openBrowser: boolean;
   server: {
@@ -78,11 +86,11 @@ const serverSchema = v.pipe(
 const optionsSchema = v.object({
   openBrowser: v.optional(v.boolean("openBrowser 必须是布尔值"), true),
   server: serverSchema,
-  sessionTtlMs: v.optional(positiveInteger, 1_800_000),
-  defaultTimeoutMs: v.optional(positiveInteger, 300_000),
-  maxPayloadBytes: v.optional(positiveInteger, 65_536),
-  maxInlineHtmlBytes: v.optional(positiveInteger, 65_536),
-  maxPageFileBytes: v.optional(positiveInteger, 3_145_728),
+  sessionTtlMs: v.optional(positiveInteger, defaultSessionTtlMs),
+  defaultTimeoutMs: v.optional(positiveInteger, defaultTimeoutMs),
+  maxPayloadBytes: v.optional(positiveInteger, defaultMaxPayloadBytes),
+  maxInlineHtmlBytes: v.optional(positiveInteger, defaultMaxInlineHtmlBytes),
+  maxPageFileBytes: v.optional(positiveInteger, defaultMaxPageFileBytes),
   pageDir: v.optional(v.pipe(v.string(), v.nonEmpty("pageDir 必须是非空字符串")), defaultPageDir()),
 });
 

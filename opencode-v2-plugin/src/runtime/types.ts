@@ -58,7 +58,7 @@ export type CreateSessionOutput = {
   pageId: string;
   pageVersion: number;
   url: string;
-  // disk 模式下页面正文的落盘路径，供观测日志定位原件
+  // 页面正文的临时文件路径，供观测日志定位原件
   pageFilePath?: string;
 };
 
@@ -88,15 +88,6 @@ export type UpdateSessionOutput = {
 
 export type EndSessionOutput = { ok: boolean };
 
-export type StorageMode = "memory" | "disk";
-
-export type StorageConfig = {
-  mode: StorageMode;
-  dataDir: string;
-  // 会话结束后保留磁盘页面原件；为 true 时 endSession 不删除目录且启动恢复不复活
-  retainPages?: boolean;
-};
-
 export type RuntimeSession = {
   sessionId: string;
   opencodeSessionId?: string;
@@ -111,8 +102,6 @@ export type RuntimeSession = {
   createdAt: number;
   updatedAt: number;
   submittedPageVersion?: number;
-  // 已结束但按 retainPages 保留在磁盘上的页面，启动恢复与周期清理都会跳过
-  retained?: boolean;
   // 无 waiter 时到达的提交缓存，供下一次 waitSubmission 立即消费
   pendingSubmission?: SubmissionOutput;
 };
