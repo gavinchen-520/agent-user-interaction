@@ -122,4 +122,30 @@ describe("browser wrapper message bridge", () => {
     expect(html).toContain("submitted = false");
     expect(html).toContain("pageVersion !== config.pageVersion");
   });
+
+  it("初始 iframe src 携带 v=<pageVersion>，避免首屏版本不一致导致提交被丢弃", () => {
+    // 若初始 iframe 不带 ?v，页面内 submitToAgent 会退回 pageVersion=1，
+    // 与 wrapper 的 config.pageVersion 不一致而被静默丢弃（提交丢失）。
+    const html = buildWrapperHtml({
+      sessionId: "s",
+      pageId: "p",
+      pageVersion: 3,
+      pageUrl: "/session/s/page",
+      submitUrl: "/submit",
+      versionUrl: "/version",
+      token: "secret",
+    });
+    expect(html).toContain('src="/session/s/page?v=3"');
+
+    const withQuery = buildWrapperHtml({
+      sessionId: "s",
+      pageId: "p",
+      pageVersion: 2,
+      pageUrl: "/session/s/page?x=1",
+      submitUrl: "/submit",
+      versionUrl: "/version",
+      token: "secret",
+    });
+    expect(withQuery).toContain('src="/session/s/page?x=1&amp;v=2"');
+  });
 });

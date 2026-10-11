@@ -79,6 +79,9 @@ export const buildWrapperHtml = (input: WrapperInput): string => {
     token: input.token,
     maxMessageBytes: input.maxMessageBytes ?? 64 * 1024,
   }).replaceAll("</", "<\\/");
+  // 初始 iframe 必须带 ?v=<pageVersion>：页面内 submitToAgent 从 URL 读取版本，
+  // 缺失时退回 1，会与 wrapper 的 config.pageVersion 不一致而被静默丢弃。
+  const pageSrc = `${input.pageUrl}${input.pageUrl.includes("?") ? "&" : "?"}v=${input.pageVersion}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(input.title ?? "HTML interaction")}</title><style>
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -92,7 +95,7 @@ iframe{display:block;border:0;width:100%;height:100%;background:#fff}
 #status[data-state="submitting"] .dot{background:#e0a94a}
 #status[data-state="submitted"] .dot{background:#0f9d68}
 #status[data-state="error"] .dot{background:#d94a3d}
-</style></head><body><span id="status" role="status" data-state="pending" aria-label="待操作"><span class="dot" aria-hidden="true"></span><span class="label">待操作</span></span><iframe sandbox="allow-scripts" src="${escapeHtml(input.pageUrl)}"></iframe><script>
+</style></head><body><span id="status" role="status" data-state="pending" aria-label="待操作"><span class="dot" aria-hidden="true"></span><span class="label">待操作</span></span><iframe sandbox="allow-scripts" src="${escapeHtml(pageSrc)}"></iframe><script>
 const config = ${config};
 const statusEl = document.getElementById("status");
 const statusLabel = statusEl.querySelector(".label");
