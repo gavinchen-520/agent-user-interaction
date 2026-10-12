@@ -15,7 +15,7 @@
     "typecheck:v2": "bun run --cwd opencode-v2-plugin typecheck",
     "build": "bun run --cwd opencode-plugin build",
     "format": "biome format --write .",
-    "check": "bun run typecheck && biome check . && bun run test"
+    "check": "bun run typecheck && bun run typecheck:v2 && biome check . && bun run test && bun run test:v2"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.10",

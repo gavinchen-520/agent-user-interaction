@@ -23,9 +23,11 @@ export type ToolInfo = {
   description: string;
   input: Record<string, unknown>;
   execute(
+    // biome-ignore lint/suspicious/noExplicitAny: 宿主 ToolContext 的入参为宽松类型，收紧需要拉入 @opencode/plugin（effect 依赖），得不偿失
     input: any,
     context: {
       signal: AbortSignal;
+      // biome-ignore lint/suspicious/noExplicitAny: progress 回调载荷为 opaque metadata，宿主不约束其形状
       progress: (message: any) => Promise<void>;
       // V2 ToolContext 携带发起工具调用的 opencode sessionID；用于把 html 会话关联回 opencode 会话
       sessionID?: string;
