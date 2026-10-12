@@ -122,6 +122,8 @@ describe("browser wrapper message bridge", () => {
     // 页面隐藏时停轮、重新可见时恢复快轮询
     expect(html).toContain('document.addEventListener("visibilitychange"');
     expect(html).toContain("if (document.hidden)");
+    // 隐藏竞态防护：fetch 在飞期间页面被隐藏，poll 完成后不得再续订调度
+    expect(html).toContain("if (document.hidden) return;");
     // 会话结束（404/410）必须停轮，不再重新调度
     expect(html).toContain("response.status === 404 || response.status === 410");
     // 刷新后必须同步最新 pageVersion/pageId，否则新页面提交会被 STALE_PAGE 拒绝

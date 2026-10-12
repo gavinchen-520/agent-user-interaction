@@ -126,6 +126,7 @@ const pollVersion = async () => {
     if (response.status === 404 || response.status === 410) return; // 会话已结束，停轮
     if (response.ok) applyVersion(await response.json());
   } catch {}
+  if (document.hidden) return; // 隐藏竞态：fetch 在飞时页面被隐藏则停轮，恢复可见时由 visibilitychange 重启
   pollDelay = Math.min(pollDelay * 2, 2000);
   schedulePoll();
 };
