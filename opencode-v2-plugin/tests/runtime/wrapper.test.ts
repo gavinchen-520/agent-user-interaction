@@ -102,7 +102,7 @@ describe("browser wrapper message bridge", () => {
     expect(html).not.toContain("status.textContent");
   });
 
-  it("轮询版本端点并在版本递增时自动刷新 iframe", () => {
+  it("自适应轮询版本端点并在版本递增时自动刷新 iframe", () => {
     const html = buildWrapperHtml({
       sessionId: "s",
       pageId: "p",
@@ -113,8 +113,17 @@ describe("browser wrapper message bridge", () => {
       token: "secret",
     });
     expect(html).toContain("config.versionUrl");
-    expect(html).toContain("setInterval(pollVersion");
-    expect(html).toContain("clearInterval(versionTimer)");
+    // 递归 setTimeout 自适应轮询：快启动（250ms）、闲置指数退避（上限 2s）
+    expect(html).toContain("let pollDelay = 250;");
+    expect(html).toContain("schedulePoll()");
+    expect(html).toContain("pollDelay = Math.min(pollDelay * 2, 2000);");
+    expect(html).not.toContain("setInterval(");
+    expect(html).not.toContain("clearInterval(versionTimer)");
+    // 页面隐藏时停轮、重新可见时恢复快轮询
+    expect(html).toContain('document.addEventListener("visibilitychange"');
+    expect(html).toContain("if (document.hidden)");
+    // 会话结束（404/410）必须停轮，不再重新调度
+    expect(html).toContain("response.status === 404 || response.status === 410");
     // 刷新后必须同步最新 pageVersion/pageId，否则新页面提交会被 STALE_PAGE 拒绝
     expect(html).toContain("config.pageVersion = info.pageVersion");
     expect(html).toContain("config.pageId = info.pageId");

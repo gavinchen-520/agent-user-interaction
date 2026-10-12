@@ -102,32 +102,45 @@ const statusLabel = statusEl.querySelector(".label");
 const setStatus = (state, text) => { statusEl.dataset.state = state; statusLabel.textContent = text; statusEl.setAttribute("aria-label", text); };
 const frame = document.querySelector("iframe");
 let submitted = false;
-let versionTimer;
+// 自适应轮询：新页面打开后快轮询（250ms）让骨架→真实页的刷新尽快可见，
+// 闲置时指数退避到上限 2s，避免常驻标签页空转；版本更新或页面重新可见时回 250ms。
+let pollDelay = 250;
+let pollTimer;
 let currentVersion = config.pageVersion;
 const applyVersion = (info) => {
   if (!info || typeof info.pageVersion !== "number" || info.pageVersion === currentVersion) return;
   currentVersion = info.pageVersion;
   config.pageVersion = info.pageVersion;
   if (typeof info.pageId === "string") config.pageId = info.pageId;
+  pollDelay = 250;
   submitted = false;
   setStatus("updated", "已更新");
   frame.src = config.pageUrl + (config.pageUrl.includes("?") ? "&" : "?") + "v=" + currentVersion;
 };
+const schedulePoll = () => {
+  pollTimer = setTimeout(pollVersion, pollDelay);
+};
 const pollVersion = async () => {
   try {
     const response = await fetch(config.versionUrl);
-    if (!response.ok) {
-      if (response.status === 404 || response.status === 410) {
-        if (versionTimer !== undefined) clearInterval(versionTimer);
-      }
-      return;
-    }
-    applyVersion(await response.json());
+    if (response.status === 404 || response.status === 410) return; // 会话已结束，停轮
+    if (response.ok) applyVersion(await response.json());
   } catch {}
+  pollDelay = Math.min(pollDelay * 2, 2000);
+  schedulePoll();
 };
-versionTimer = setInterval(pollVersion, 700);
+schedulePoll();
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    clearTimeout(pollTimer);
+    return;
+  }
+  clearTimeout(pollTimer);
+  pollDelay = 250;
+  schedulePoll();
+});
 window.addEventListener("pagehide", () => {
-  if (versionTimer !== undefined) clearInterval(versionTimer);
+  clearTimeout(pollTimer);
 });
 const isJson = (value, seen = new Set()) => {
   if (value === null || typeof value === "string" || typeof value === "boolean") return true;
