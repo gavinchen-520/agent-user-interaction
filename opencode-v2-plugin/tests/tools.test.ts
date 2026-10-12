@@ -245,9 +245,8 @@ describe("createHtmlSessionTools 输入契约（schema 提示 + 结构化错误�
 
   test("html/htmlFile 属性 description 写明互斥与分档", () => {
     const [create] = createHtmlSessionTools(runtime, cfg);
-    const properties = (
-      create.input as { properties: Record<string, { description?: string }> }
-    ).properties;
+    const properties = (create.input as { properties: Record<string, { description?: string }> })
+      .properties;
     expect(properties.html?.description ?? "").toContain("互斥");
     expect(properties.htmlFile?.description ?? "").toContain("互斥");
   });

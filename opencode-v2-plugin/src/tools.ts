@@ -1,12 +1,11 @@
 import { readFileSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-
+import type { TimingMetrics } from "./metrics";
 import { openBrowser } from "./runtime/browser";
 import { collectHtmlIssues, summarizeHtmlIssues } from "./runtime/htmlValidation";
 import { injectPageRuntime } from "./runtime/pageRuntime";
 import { createRuntimeError } from "./runtime/protocol";
 import type { HtmlRuntime } from "./runtime/types";
-import type { TimingMetrics } from "./metrics";
 
 export type ToolConfig = {
   openBrowser: boolean | ((url: string) => Promise<void>);
@@ -83,12 +82,14 @@ const resolveHtml = (
   htmlFile: string | undefined,
   config: ToolConfig,
 ): string => {
-  const reject = (message: string, action: string): never => {
-    throw createRuntimeError("INVALID_TOOL_INPUT", message, 400, action);
-  };
   if (html !== undefined && htmlFile !== undefined)
-    reject("html 与 htmlFile 不能同时提供", "二选一：内联 html 或本地文件路径 htmlFile");
-  let content: string;
+    throw createRuntimeError(
+      "INVALID_TOOL_INPUT",
+      "html 与 htmlFile 不能同时提供",
+      400,
+      "二选一：内联 html 或本地文件路径 htmlFile",
+    );
+  let content: string | undefined;
   if (html !== undefined) {
     const bytes = byteLength(html);
     if (bytes > config.maxInlineHtmlBytes)
@@ -101,14 +102,20 @@ const resolveHtml = (
     content = html;
   } else if (htmlFile !== undefined) {
     content = readHtmlFile(htmlFile, config.maxPageFileBytes, config.rootDirectory);
-  } else {
-    reject("必须提供 html 或 htmlFile 之一", "提供内联 html，或本地文件路径 htmlFile");
   }
+  if (content === undefined)
+    throw createRuntimeError(
+      "INVALID_TOOL_INPUT",
+      "必须提供 html 或 htmlFile 之一",
+      400,
+      "提供内联 html，或本地文件路径 htmlFile",
+    );
   assertSandboxCompatible(content);
   return content;
 };
 
-const submitDiscipline = '提交控件必须用 type="button" 并在 click 里调用 submitToAgent（原生表单提交会被沙箱拦截）';
+const submitDiscipline =
+  '提交控件必须用 type="button" 并在 click 里调用 submitToAgent（原生表单提交会被沙箱拦截）';
 
 const createInput = {
   type: "object",
@@ -171,14 +178,12 @@ const endInput = {
 };
 
 // 服务端 TTFP 代理口径：轮次起点存在时，把 create/update 的成功完成记为一行 pageReady
-const recordPageReady = (
-  options: {
-    metrics?: TimingMetrics;
-    opencodeSessionId?: string;
-    sessionId: string;
-    html: string;
-  },
-): void => {
+const recordPageReady = (options: {
+  metrics?: TimingMetrics;
+  opencodeSessionId?: string;
+  sessionId: string;
+  html: string;
+}): void => {
   const { metrics, opencodeSessionId, sessionId, html } = options;
   if (!metrics || !opencodeSessionId) return;
   const startAt = metrics.getTurnStart(opencodeSessionId);

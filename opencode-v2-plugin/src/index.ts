@@ -1,8 +1,7 @@
-import { Plugin } from "@opencode/plugin";
 import { join } from "node:path";
-
-import { resolveOptions } from "./options";
+import { Plugin } from "@opencode/plugin";
 import { createTimingLog, createTurnTracker } from "./metrics";
+import { resolveOptions } from "./options";
 import type { StorageDomain } from "./runtime";
 import {
   createHtmlRuntime,
