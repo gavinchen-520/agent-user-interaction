@@ -12,8 +12,7 @@ const collectFiles = (root: string, current = ""): Map<string, Buffer> => {
     const relative = current ? `${current}/${name}` : name;
     const absolute = join(root, relative);
     if (statSync(absolute).isDirectory()) {
-      for (const [child, content] of collectFiles(root, relative))
-        entries.set(child, content);
+      for (const [child, content] of collectFiles(root, relative)) entries.set(child, content);
       continue;
     }
     entries.set(relative, readFileSync(absolute));
@@ -34,7 +33,9 @@ describe("skills source ↔ runtime copy sync", () => {
     const runtimeNames = [...runtime.keys()].sort();
     expect(runtimeNames).toEqual(sourceNames);
     for (const name of sourceNames) {
-      expect(runtime.get(name)?.equals(source.get(name)!)).toBeTrue();
+      const expected = source.get(name) ?? Buffer.alloc(0);
+      const actual = runtime.get(name) ?? Buffer.alloc(0);
+      expect(actual.equals(expected)).toBeTrue();
     }
   });
 });
