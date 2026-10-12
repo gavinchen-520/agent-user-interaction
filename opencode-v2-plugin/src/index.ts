@@ -1,6 +1,8 @@
 import { Plugin } from "@opencode/plugin";
+import { join } from "node:path";
 
 import { resolveOptions } from "./options";
+import { createTimingLog, createTurnTracker } from "./metrics";
 import type { StorageDomain } from "./runtime";
 import {
   createHtmlRuntime,
@@ -40,6 +42,17 @@ const setup = async (ctx: PluginContext): Promise<Plugin.Cleanup> => {
 
   const metaStore = createMetaStore(adaptStorage(ctx.storage));
   const pageStore = createPageStore(opts.pageDir);
+
+  // 服务端 TTFP 埋点（代理口径）：宿主每轮执行开始记起点，create/update 成功时落一行 JSONL
+  const turnTracker = createTurnTracker();
+  const timingLog = createTimingLog(join(opts.pageDir, "timings.jsonl"));
+  const timingMetrics = {
+    getTurnStart: (sessionId?: string) => (sessionId ? turnTracker.get(sessionId) : null),
+    appendTiming: (record: Record<string, unknown>) => {
+      void timingLog.append(record);
+    },
+  };
+
   const runtime = createHtmlRuntime({
     maxPayloadBytes: opts.maxPayloadBytes,
     defaultTimeoutMs: opts.defaultTimeoutMs,
@@ -61,21 +74,30 @@ const setup = async (ctx: PluginContext): Promise<Plugin.Cleanup> => {
     await runtime.restore();
 
     await ctx.tool.transform((editor) => {
-      const tools = createHtmlSessionTools(runtime, {
-        openBrowser: opts.openBrowser,
-        rootDirectory: ctx.location.directory,
-        maxInlineHtmlBytes: opts.maxInlineHtmlBytes,
-        maxPageFileBytes: opts.maxPageFileBytes,
-        // 与 runtime 共享同一 maxPayloadBytes，避免两处上限漂移
-        maxPayloadBytes: opts.maxPayloadBytes,
-      });
+      const tools = createHtmlSessionTools(
+        runtime,
+        {
+          openBrowser: opts.openBrowser,
+          rootDirectory: ctx.location.directory,
+          maxInlineHtmlBytes: opts.maxInlineHtmlBytes,
+          maxPageFileBytes: opts.maxPageFileBytes,
+          // 与 runtime 共享同一 maxPayloadBytes，避免两处上限漂移
+          maxPayloadBytes: opts.maxPayloadBytes,
+        },
+        timingMetrics,
+      );
       for (const tool of tools) editor.add(tool as unknown as ToolEditorItem);
     });
 
-    // 分离的订阅循环：opencode 会话删除时结束其关联的 html 会话
+    // 分离的订阅循环：执行轮开始记 TTFP 起点；opencode 会话删除时结束其关联的 html 会话
     void (async () => {
       try {
         for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+          if (event.type === "session.execution.started") {
+            const { sessionID } = event.data as { sessionID?: string };
+            if (typeof sessionID === "string") turnTracker.recordStart(sessionID, Date.now());
+            continue;
+          }
           if (event.type !== "session.deleted") continue;
           const { sessionID } = event.data;
           for (const session of runtime.listSessions()) {

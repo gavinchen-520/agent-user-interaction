@@ -162,3 +162,71 @@ describe("createHtmlSessionTools", () => {
     await expect(pending).rejects.toMatchObject({ code: "WAIT_CANCELLED" });
   });
 });
+
+describe("createHtmlSessionTools metrics 接线（服务端 TTFP 代理口径）", () => {
+  type PageReadyRecord = {
+    phase: string;
+    sessionId: string;
+    opencodeSessionId: string;
+    durationMs: number;
+    bytes: number;
+    at: string;
+  };
+
+  const makeMetrics = (startAt: number | null) => {
+    const records: PageReadyRecord[] = [];
+    return {
+      records,
+      metrics: {
+        getTurnStart: (sessionId?: string) => (sessionId === "ses_t1" ? startAt : null),
+        appendTiming: (record: Record<string, unknown>) => {
+          records.push(record as unknown as PageReadyRecord);
+        },
+      },
+    };
+  };
+
+  test("create 成功后写入 pageReady 记录（含 durationMs/bytes/opencodeSessionId）", async () => {
+    const startedAt = Date.now() - 5;
+    const { records, metrics } = makeMetrics(startedAt);
+    const [create] = createHtmlSessionTools(runtime, cfg, metrics);
+    const created = JSON.parse(
+      (await create.execute({ html: "<html></html>" }, { ...ctx, sessionID: "ses_t1" })).content,
+    );
+    expect(records).toHaveLength(1);
+    const [rec] = records;
+    expect(rec.phase).toBe("pageReady");
+    expect(rec.sessionId).toBe(created.sessionId);
+    expect(rec.opencodeSessionId).toBe("ses_t1");
+    expect(rec.durationMs).toBeGreaterThanOrEqual(0);
+    expect(rec.bytes).toBe(byteLengthOf("<html></html>"));
+    expect(typeof rec.at).toBe("string");
+  });
+
+  test("update 成功同样写入 pageReady 记录", async () => {
+    const startedAt = Date.now() - 5;
+    const { records, metrics } = makeMetrics(startedAt);
+    const [create, , update] = createHtmlSessionTools(runtime, cfg, metrics);
+    const created = JSON.parse(
+      (await create.execute({ html: "<html></html>" }, { ...ctx, sessionID: "ses_t1" })).content,
+    );
+    await update.execute(
+      { sessionId: created.sessionId, html: "<p>next</p>" },
+      { ...ctx, sessionID: "ses_t1" },
+    );
+    expect(records).toHaveLength(2);
+    expect(records[1]).toMatchObject({ phase: "pageReady", opencodeSessionId: "ses_t1" });
+  });
+
+  test("无轮次起点或未传 metrics 时不写任何记录", async () => {
+    const nullStart = makeMetrics(null);
+    const [createA] = createHtmlSessionTools(runtime, cfg, nullStart.metrics);
+    await createA.execute({ html: "<html></html>" }, { ...ctx, sessionID: "ses_t1" });
+    expect(nullStart.records).toHaveLength(0);
+
+    const [createB] = createHtmlSessionTools(runtime, cfg);
+    await createB.execute({ html: "<html></html>" }, { ...ctx, sessionID: "ses_t1" });
+  });
+});
+
+const byteLengthOf = (value: string): number => new TextEncoder().encode(value).byteLength;

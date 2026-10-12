@@ -6,6 +6,7 @@ import { collectHtmlIssues, summarizeHtmlIssues } from "./runtime/htmlValidation
 import { injectPageRuntime } from "./runtime/pageRuntime";
 import { createRuntimeError } from "./runtime/protocol";
 import type { HtmlRuntime } from "./runtime/types";
+import type { TimingMetrics } from "./metrics";
 
 export type ToolConfig = {
   openBrowser: boolean | ((url: string) => Promise<void>);
@@ -145,7 +146,35 @@ const endInput = {
   additionalProperties: false,
 };
 
-export const createHtmlSessionTools = (runtime: HtmlRuntime, config: ToolConfig): ToolInfo[] => {
+// 服务端 TTFP 代理口径：轮次起点存在时，把 create/update 的成功完成记为一行 pageReady
+const recordPageReady = (
+  options: {
+    metrics?: TimingMetrics;
+    opencodeSessionId?: string;
+    sessionId: string;
+    html: string;
+  },
+): void => {
+  const { metrics, opencodeSessionId, sessionId, html } = options;
+  if (!metrics || !opencodeSessionId) return;
+  const startAt = metrics.getTurnStart(opencodeSessionId);
+  if (startAt === null) return;
+  metrics.appendTiming({
+    phase: "pageReady",
+    sessionId,
+    opencodeSessionId,
+    // 字节口径：模型原始输出（注入运行时之前）
+    bytes: byteLength(html),
+    durationMs: Date.now() - startAt,
+    at: new Date().toISOString(),
+  });
+};
+
+export const createHtmlSessionTools = (
+  runtime: HtmlRuntime,
+  config: ToolConfig,
+  metrics?: TimingMetrics,
+): ToolInfo[] => {
   // 打开失败时清理 session，避免留下不可达的会话（沿用 V1 语义）
   const openSessionBrowser = async (url: string, sessionId: string): Promise<void> => {
     if (config.openBrowser === false) return;
@@ -177,6 +206,12 @@ export const createHtmlSessionTools = (runtime: HtmlRuntime, config: ToolConfig)
         opencodeSessionId: context.sessionID,
       });
       await openSessionBrowser(output.url, output.sessionId);
+      recordPageReady({
+        metrics,
+        opencodeSessionId: context.sessionID,
+        sessionId: output.sessionId,
+        html,
+      });
       return { content: toJson(output) };
     },
   };
@@ -200,17 +235,20 @@ export const createHtmlSessionTools = (runtime: HtmlRuntime, config: ToolConfig)
     name: "update_html_session",
     description: "更新 HTML 页面内容和可选状态。",
     input: updateInput,
-    execute: async (input) => {
+    execute: async (input, context) => {
       const html = resolveHtml(input.html, input.htmlFile, config);
-      return {
-        content: toJson(
-          await runtime.updateSession({
-            sessionId: input.sessionId,
-            html: injectPageRuntime(html, { maxPayloadBytes: config.maxPayloadBytes }),
-            state: input.state,
-          }),
-        ),
-      };
+      const output = await runtime.updateSession({
+        sessionId: input.sessionId,
+        html: injectPageRuntime(html, { maxPayloadBytes: config.maxPayloadBytes }),
+        state: input.state,
+      });
+      recordPageReady({
+        metrics,
+        opencodeSessionId: context.sessionID,
+        sessionId: input.sessionId,
+        html,
+      });
+      return { content: toJson(output) };
     },
   };
 
