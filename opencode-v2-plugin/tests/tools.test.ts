@@ -230,3 +230,51 @@ describe("createHtmlSessionTools metrics 接线（服务端 TTFP 代理口径）
 });
 
 const byteLengthOf = (value: string): number => new TextEncoder().encode(value).byteLength;
+
+describe("createHtmlSessionTools 输入契约（schema 提示 + 结构化错误）", () => {
+  // 宿主已验证会在每次请求把 input JSON Schema 原样下发给模型，并在 execute 前
+  // 按 schema 校验失败直接拒绝（packages/core/src/tool/runtime.ts decodeInput）。
+  test("create/update 的 input 用 anyOf 声明 html/htmlFile 必须二选一", () => {
+    const tools = createHtmlSessionTools(runtime, cfg);
+    for (const tool of [tools[0], tools[2]]) {
+      const anyOf = (tool.input as { anyOf?: Array<{ required: string[] }> }).anyOf;
+      expect(anyOf).toHaveLength(2);
+      expect(anyOf?.map((branch) => branch.required)).toEqual([["html"], ["htmlFile"]]);
+    }
+  });
+
+  test("html/htmlFile 属性 description 写明互斥与分档", () => {
+    const [create] = createHtmlSessionTools(runtime, cfg);
+    const properties = (
+      create.input as { properties: Record<string, { description?: string }> }
+    ).properties;
+    expect(properties.html?.description ?? "").toContain("互斥");
+    expect(properties.htmlFile?.description ?? "").toContain("互斥");
+  });
+
+  test("create/update 的工具 description 含提交控件纪律（防首次生成即违规）", () => {
+    const [create, , update] = createHtmlSessionTools(runtime, cfg);
+    for (const tool of [create, update]) {
+      expect(tool.description).toContain('type="button"');
+      expect(tool.description).toContain("submitToAgent");
+    }
+  });
+
+  test("同给 / 双缺均抛 INVALID_TOOL_INPUT 结构化错误", async () => {
+    const [create, , update] = createHtmlSessionTools(runtime, cfg);
+    await expect(
+      create.execute({ html: "<html></html>", htmlFile: "a.html" }, ctx),
+    ).rejects.toMatchObject({ code: "INVALID_TOOL_INPUT", action: expect.any(String) });
+    await expect(create.execute({}, ctx)).rejects.toMatchObject({
+      code: "INVALID_TOOL_INPUT",
+      action: expect.any(String),
+    });
+    const created = JSON.parse((await create.execute({ html: "<html></html>" }, ctx)).content);
+    await expect(
+      update.execute({ sessionId: created.sessionId, html: "<p>x</p>", htmlFile: "a.html" }, ctx),
+    ).rejects.toMatchObject({ code: "INVALID_TOOL_INPUT" });
+    await expect(update.execute({ sessionId: created.sessionId }, ctx)).rejects.toMatchObject({
+      code: "INVALID_TOOL_INPUT",
+    });
+  });
+});

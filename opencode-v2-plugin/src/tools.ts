@@ -76,14 +76,18 @@ const assertSandboxCompatible = (html: string): void => {
   );
 };
 
-// html 与 htmlFile 互斥；内联走内联上限，文件走页面文件上限；统一过沙箱门禁
+// html 与 htmlFile 互斥；内联走内联上限，文件走页面文件上限；统一过沙箱门禁。
+// schema 的 anyOf 只给宿主/模型做静态提示，真正的强制校验仍在这里（schema 不是安全边界）。
 const resolveHtml = (
   html: string | undefined,
   htmlFile: string | undefined,
   config: ToolConfig,
 ): string => {
+  const reject = (message: string, action: string): never => {
+    throw createRuntimeError("INVALID_TOOL_INPUT", message, 400, action);
+  };
   if (html !== undefined && htmlFile !== undefined)
-    throw new Error("html 与 htmlFile 不能同时提供");
+    reject("html 与 htmlFile 不能同时提供", "二选一：内联 html 或本地文件路径 htmlFile");
   let content: string;
   if (html !== undefined) {
     const bytes = byteLength(html);
@@ -98,20 +102,31 @@ const resolveHtml = (
   } else if (htmlFile !== undefined) {
     content = readHtmlFile(htmlFile, config.maxPageFileBytes, config.rootDirectory);
   } else {
-    throw new Error("必须提供 html 或 htmlFile 之一");
+    reject("必须提供 html 或 htmlFile 之一", "提供内联 html，或本地文件路径 htmlFile");
   }
   assertSandboxCompatible(content);
   return content;
 };
 
+const submitDiscipline = '提交控件必须用 type="button" 并在 click 里调用 submitToAgent（原生表单提交会被沙箱拦截）';
+
 const createInput = {
   type: "object",
   properties: {
     title: { type: "string" },
-    html: { type: "string", minLength: 1 },
-    htmlFile: { type: "string", minLength: 1 },
+    html: {
+      type: "string",
+      minLength: 1,
+      description: "完整 HTML 文档；与 htmlFile 互斥，二选一；内联上限默认 64KiB，超限会被拒",
+    },
+    htmlFile: {
+      type: "string",
+      minLength: 1,
+      description: "本地 HTML 文件路径；与 html 互斥，二选一；上限默认 3MiB，仅较大页面使用",
+    },
     initialState: {},
   },
+  anyOf: [{ required: ["html"] }, { required: ["htmlFile"] }],
   additionalProperties: false,
 };
 
@@ -129,10 +144,19 @@ const updateInput = {
   type: "object",
   properties: {
     sessionId: { type: "string", minLength: 1 },
-    html: { type: "string", minLength: 1 },
-    htmlFile: { type: "string", minLength: 1 },
+    html: {
+      type: "string",
+      minLength: 1,
+      description: "完整 HTML 文档；与 htmlFile 互斥，二选一；内联上限默认 64KiB，超限会被拒",
+    },
+    htmlFile: {
+      type: "string",
+      minLength: 1,
+      description: "本地 HTML 文件路径；与 html 互斥，二选一；上限默认 3MiB，仅较大页面使用",
+    },
     state: {},
   },
+  anyOf: [{ required: ["html"] }, { required: ["htmlFile"] }],
   required: ["sessionId"],
   additionalProperties: false,
 };
@@ -195,7 +219,7 @@ export const createHtmlSessionTools = (
 
   const create: ToolInfo = {
     name: "create_html_session",
-    description: "创建一个可交互的 HTML 页面会话。",
+    description: `创建一个可交互的 HTML 页面会话。${submitDiscipline}。`,
     input: createInput,
     execute: async (input, context) => {
       const html = resolveHtml(input.html, input.htmlFile, config);
@@ -233,7 +257,7 @@ export const createHtmlSessionTools = (
 
   const update: ToolInfo = {
     name: "update_html_session",
-    description: "更新 HTML 页面内容和可选状态。",
+    description: `更新 HTML 页面内容和可选状态（需提供 html 或 htmlFile 之一）。${submitDiscipline}。`,
     input: updateInput,
     execute: async (input, context) => {
       const html = resolveHtml(input.html, input.htmlFile, config);
