@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.opencode/
+opencode.json
 .worktrees/
 .superpowers/
 .DS_Store
