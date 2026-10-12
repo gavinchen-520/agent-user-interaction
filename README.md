@@ -3,7 +3,7 @@
 Agent UI Interaction 由两个独立的安装单元组成：
 
 - `skills/html-interaction`：安装到 OpenCode skill 目录的模型工作流说明（提交 bridge 由插件自动注入）。
-- `opencode-plugin`：通过 `opencode.json` 加载的插件包，提供 HTML 交互运行时和工具。
+- `opencode-v2-plugin`：默认插件入口（OpenCode V2 插件 API，插件 id `agent-ui-interaction`），提供 HTML 交互运行时和工具；`opencode-plugin/` 是面向 OpenCode V1 宿主的等价实现，其安装与发布见「OpenCode V1 插件安装」与「构建与发布」。
 
 ## 环境要求
 
@@ -12,7 +12,7 @@ Agent UI Interaction 由两个独立的安装单元组成：
 
 ## 安装
 
-两个安装单元缺一不可：**skill**（`skills/html-interaction`，模型工作流说明 + 供 CI/开发自测的 jsdom 冒烟脚本）和**插件**（`opencode-plugin`，HTML 交互运行时 + `create_html_session` 等工具 + 生成时的静态沙箱兼容性校验；提交 bridge 与可选设计令牌在 create/update 时自动注入）。
+两个安装单元缺一不可：**skill**（`skills/html-interaction`，模型工作流说明 + 供 CI/开发自测的 jsdom 冒烟脚本）和**插件**（`opencode-v2-plugin`，HTML 交互运行时 + `create_html_session` 等工具 + 生成时的静态沙箱兼容性校验；提交 bridge 与可选设计令牌在 create/update 时自动注入）。
 
 ### 1. 安装 skill
 
@@ -30,16 +30,30 @@ mkdir -p .opencode/skills && cp -R skills/html-interaction .opencode/skills/
 mkdir -p ~/.config/opencode/skills && cp -R skills/html-interaction ~/.config/opencode/skills/
 ```
 
-### 2. 构建插件
+### 2. 安装插件（默认入口：opencode-v2-plugin）
+
+仓库根执行一次 `bun install`，然后复制 `opencode.json.example` 为本机的 `opencode.json`。v2 插件直接从源码加载、无需构建：
+
+```json
+{
+  "plugins": [
+    { "package": "./opencode-v2-plugin", "options": {} }
+  ]
+}
+```
+
+安装完成后重启 OpenCode：`html-interaction` skill 应出现在 skill 列表中，模型可调用 `create_html_session` 等工具。完整参数见「OpenCode V2 插件」小节与 `opencode-v2-plugin/README.md`。
+
+### 3. OpenCode V1 插件安装（可选，面向 V1 宿主）
+
+以下构建/声明步骤仅适用于 `opencode-plugin`（V1 实现）：
 
 ```bash
 bun install
 bun run build   # 生成 opencode-plugin/dist/index.js
 ```
 
-### 3. 在 `opencode.json` 中加载插件
-
-复制 `opencode.json.example` 为本机的 `opencode.json`，再按需修改。默认配置保持内存模式、loopback 和随机端口：
+在 `opencode.json` 中以 V1 的 `plugin` 元组形式加载：
 
 ```json
 {
@@ -49,9 +63,9 @@ bun run build   # 生成 opencode-plugin/dist/index.js
 }
 ```
 
-### 4. 声明插件依赖
+#### V1 依赖声明
 
-插件通过 `import "@opencode-ai/plugin"` 引用宿主 API，该 import 不打包进产物，运行时由宿主从 `.opencode/node_modules` 解析。因此需在配置目录的 `.opencode/package.json` 声明依赖（OpenCode 启动时会自动 `bun install`），版本须与 `opencode-plugin/package.json` 一致：
+V1 插件通过 `import "@opencode-ai/plugin"` 引用宿主 API，该 import 不打包进产物，运行时由宿主从 `.opencode/node_modules` 解析。因此需在配置目录的 `.opencode/package.json` 声明依赖（OpenCode 启动时会自动 `bun install`），版本须与 `opencode-plugin/package.json` 一致：
 
 ```json
 { "dependencies": { "@opencode-ai/plugin": "1.18.27" } }
@@ -80,7 +94,7 @@ end_html_session({ sessionId })
 
 ## 配置
 
-通过 `opencode.json` 的 `plugin` 元组为插件传参；不配置任何选项即为默认行为（内存模式 + loopback + 随机端口）：
+本节描述 V1 插件（`plugin` 元组）的参数；v2 的具名参数见 `opencode-v2-plugin/README.md`。不配置任何选项即为默认行为（内存模式 + loopback + 随机端口）：
 
 ```json
 {
@@ -154,9 +168,9 @@ end_html_session({ sessionId })
 - `maxPayloadBytes`：提交 payload（浏览器 → 模型）上限，默认 64KiB。
 - `openBrowser`：创建成功后是否自动打开浏览器，默认开启。
 
-## OpenCode V2 插件（可选）
+## OpenCode V2 插件（默认入口）
 
-仓库另含 `opencode-v2-plugin/`：面向 OpenCode V2 插件 API 的原生精简实现（插件 id 为 `agent-ui-interaction`），工具与 V1 一致，但配置改用具名 `plugins` 数组对象形式，元数据存 `ctx.storage`、页面存临时目录。它只提供插件、不含 skill（skill 仍是单独的 `skills/html-interaction` 单元）：
+`opencode-v2-plugin/` 是当前默认且活跃开发的插件实现（OpenCode V2 插件 API，插件 id 为 `agent-ui-interaction`），工具与 V1 一致，配置改用具名 `plugins` 数组对象形式，元数据存 `ctx.storage`、页面存临时目录。它只提供插件、不含 skill（skill 仍是单独的 `skills/html-interaction` 单元）：
 
 ```jsonc
 {
@@ -166,7 +180,7 @@ end_html_session({ sessionId })
 }
 ```
 
-详见 `opencode-v2-plugin/README.md`。V1 `opencode-plugin/` 不受影响。
+完整参数与默认值见 `opencode-v2-plugin/README.md`。「配置」小节描述的 `storage.*` 参数属于 V1 插件。V1 `opencode-plugin/` 不受影响，其安装见上文「OpenCode V1 插件安装」。
 
 ## 构建与发布
 
