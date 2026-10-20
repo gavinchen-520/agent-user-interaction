@@ -15,7 +15,6 @@
     "typecheck:v2": "bun run --cwd opencode-v2-aui typecheck",
     "build": "bun run --cwd opencode-v1-aui build",
     "format": "biome format --write .",
-    "screenshots": "bun run scripts/screenshots/capture.ts && bun run scripts/screenshots/hero.ts",
     "check": "bun run typecheck && bun run typecheck:v2 && biome check . && bun run test && bun run test:v2"
   },
   "devDependencies": {

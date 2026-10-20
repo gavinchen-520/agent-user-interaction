@@ -193,7 +193,6 @@ V1 需要先 `bun run build`，并在配置目录的 `.opencode/package.json` �
 | `opencode-v1-aui/` | OpenCode V1 插件 API 的等价实现，需构建 |
 | `tests/` | 单元、集成、Playwright E2E |
 | `docs/images/` | README 场景截图 |
-| `scripts/screenshots/` | 截图生成脚本（真实 runtime + Playwright） |
 
 每个单元都有自己的 README：
 
@@ -236,14 +235,6 @@ bun run check        # typecheck + biome + 单元/集成测试
 bun run test:e2e     # Playwright：真实 bridge、sandbox iframe、提交全链路
 bun run build        # 构建 V1 插件 dist
 ```
-
-重新生成 README 截图（使用真实 runtime + wrapper）：
-
-```bash
-bun run screenshots
-```
-
-产物写入 `docs/images/`，场景源码在 `scripts/screenshots/scenarios/`，首屏拼图由 `scripts/screenshots/hero.ts` 生成。
 
 ---
 
