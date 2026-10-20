@@ -1,6 +1,22 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    { "package": "./opencode-v2-aui", "options": {} }
+    {
+      "package": "./opencode-v2-aui",
+      "options": {
+        // 创建页面会话后自动打开浏览器
+        "openBrowser": true,
+        // 页面正文临时目录，默认为 os.tmpdir()/opencode-html-sessions
+        "pageDir": ".opencode/v2-html-pages",
+        "server": {
+          // 监听地址，默认 127.0.0.1
+          "hostname": "127.0.0.1",
+          // 固定端口（10000-65535），默认 0 即随机端口
+          "port": 15073,
+          // 对外可访问地址；非 loopback 监听时必须配置
+          "publicBaseUrl": "http://127.0.0.1:15073"
+        }
+      }
+    }
   ]
 }
