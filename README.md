@@ -233,3 +233,7 @@ bunx playwright test tests/e2e/html-interaction.spec.ts --project=chromium
 ```bash
 bun run check
 ```
+
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。

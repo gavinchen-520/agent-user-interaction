@@ -20,7 +20,7 @@
 - 所有系统边界使用 `unknown` 后经 Valibot schema 校验，不使用 `any`、`@ts-ignore` 或 `eslint-disable`。
 - TypeScript 使用 2 空格缩进、camelCase、双引号、分号和尾逗号；业务逻辑使用工厂函数，不使用 class。
 - 所有公开函数和所有错误路径必须有 Bun test；文件系统测试使用唯一 `/tmp` 路径并清理。
-- 不修改 `/Users/gavin/workspace-ai/agent-ui-generator/octto` 和 `/Users/gavin/workspace-ai/agent-ui-generator/agent-html-skills`。
+- 不修改外部依赖仓库（`octto`、`agent-html-skills`）。
 
 ---
 
