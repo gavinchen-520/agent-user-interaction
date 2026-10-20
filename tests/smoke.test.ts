@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import packageMetadata from "../opencode-plugin/package.json";
+import packageMetadata from "../opencode-v1-aui/package.json";
 
-import plugin from "../opencode-plugin/src/index";
+import plugin from "../opencode-v1-aui/src/index";
 
 describe("OpenCode 插件入口", () => {
   it("导出插件工厂函数", () => {

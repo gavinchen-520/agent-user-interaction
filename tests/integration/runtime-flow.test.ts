@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
-import { createHtmlRuntime } from "../../opencode-plugin/src/runtime";
-import { createRuntimeServer } from "../../opencode-plugin/src/runtime/server";
-import type { HtmlRuntime } from "../../opencode-plugin/src/runtime/types";
+import { createHtmlRuntime } from "../../opencode-v1-aui/src/runtime";
+import { createRuntimeServer } from "../../opencode-v1-aui/src/runtime/server";
+import type { HtmlRuntime } from "../../opencode-v1-aui/src/runtime/types";
 
 type PostResult = { status: number; code?: string };
 

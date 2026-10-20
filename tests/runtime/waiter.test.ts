@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { createWaiterRegistry } from "../../opencode-plugin/src/runtime/waiter";
+import { createWaiterRegistry } from "../../opencode-v1-aui/src/runtime/waiter";
 
 describe("waiter registry", () => {
   it("超时后移除 waiter", async () => {

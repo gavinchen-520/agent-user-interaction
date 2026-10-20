@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>团队成员健康申报</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --field: #0b1120;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --primary: #38bdf8;
+      --danger: #f87171;
+      --ok: #4ade80;
+      --warn: #facc15;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .container {
+      width: 100%;
+      max-width: 520px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 32px;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+    .field { margin-bottom: 24px; }
+    label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+    .required { color: var(--danger); margin-left: 2px; }
+    input[type=text], input[type=number], select {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--field);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.15s;
+      appearance: none;
+    }
+    input[type=text]:focus, input[type=number]:focus, select:focus { border-color: var(--primary); }
+    input.invalid, select.invalid { border-color: var(--danger); }
+    .hint { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 18px; }
+    .hint.error { color: var(--danger); }
+    .radio-group { display: flex; gap: 12px; }
+    .radio-item { flex: 1; }
+    .radio-item input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .radio-item span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--field);
+      font-size: 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .radio-item input:checked + span { border-color: var(--primary); background: rgba(56, 189, 248, 0.12); }
+    .radio-item span.no-cough:checked { border-color: var(--ok); background: rgba(74, 222, 128, 0.12); }
+    .radio-item span.has-cough:checked { border-color: var(--danger); background: rgba(248, 113, 113, 0.12); }
+    .submit-btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: var(--primary);
+      color: #0f172a;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .submit-btn:hover { opacity: 0.9; }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status { margin-top: 16px; font-size: 14px; color: var(--muted); text-align: center; min-height: 20px; }
+    .status.ok { color: var(--ok); }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>日常健康申报</h1>
+    <p class="subtitle">请如实填写今日健康状况，提交后由系统汇总。</p>
+    <form id="healthForm" novalidate>
+      <div class="field">
+        <label for="name">姓名<span class="required">*</span></label>
+        <input id="name" type="text" name="name" placeholder="请输入姓名" autocomplete="name" autofocus>
+        <p class="hint" data-hint-for="name"></p>
+      </div>
+      <div class="field">
+        <label for="temp">今日体温（℃）<span class="required">*</span></label>
+        <input id="temp" type="number" name="temp" placeholder="36.5" min="35" max="42" step="0.1" inputmode="decimal">
+        <p class="hint" data-hint-for="temp"></p>
+      </div>
+      <div class="field">
+        <label>今日有无咳嗽<span class="required">*</span></label>
+        <div class="radio-group">
+          <label class="radio-item">
+            <input type="radio" name="cough" value="无咳嗽">
+            <span class="no-cough">无咳嗽</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="cough" value="有咳嗽">
+            <span class="has-cough">有咳嗽</span>
+          </label>
+        </div>
+        <p class="hint" data-hint-for="cough"></p>
+      </div>
+      <div class="field">
+        <label for="location">今日行程地点<span class="required">*</span></label>
+        <select id="location" name="location">
+          <option value="">请选择行程地点</option>
+          <option value="居家">居家</option>
+          <option value="公司">公司</option>
+          <option value="出差地">出差地</option>
+          <option value="医院">医院</option>
+          <option value="公共场所">公共场所</option>
+          <option value="其他">其他</option>
+        </select>
+        <p class="hint" data-hint-for="location"></p>
+      </div>
+      <button id="submit" class="submit-btn" type="button">提交申报</button>
+    </form>
+    <output id="status" class="status" aria-live="polite"></output>
+  </main>
+
+  <script>
+    (function exposeSubmitBridge(globalWindow) {
+      "use strict";
+
+      var maxPayloadBytes = 64 * 1024;
+
+      function isJsonCompatible(value, seen) {
+        if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+        if (typeof value === "number") return Number.isFinite(value);
+        if (typeof value !== "object") return false;
+        if (seen.has(value)) return false;
+        seen.add(value);
+        if (Array.isArray(value)) {
+          for (var index = 0; index < value.length; index += 1) {
+            if (!isJsonCompatible(value[index], seen)) return false;
+          }
+        } else {
+          for (var key in value) {
+            if (Object.prototype.hasOwnProperty.call(value, key) && !isJsonCompatible(value[key], seen)) return false;
+          }
+        }
+        seen.delete(value);
+        return true;
+      }
+
+      function submitToAgent(payload) {
+        if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return false;
+        if (typeof payload.kind !== "string" || payload.kind.trim() === "") return false;
+        if (!isJsonCompatible(payload.data, new WeakSet()) || !isJsonCompatible(payload.metadata, new WeakSet())) return false;
+        var message = { type: "html-submit", payload: { kind: payload.kind, data: payload.data, metadata: payload.metadata } };
+        var serialized;
+        try {
+          serialized = JSON.stringify(message);
+        } catch (_error) {
+          return false;
+        }
+        if (new TextEncoder().encode(serialized).length > maxPayloadBytes) return false;
+        window.parent.postMessage(message, "*");
+        return true;
+      }
+
+      globalWindow.submitToAgent = submitToAgent;
+    })(window);
+
+    const form = document.querySelector("#healthForm");
+    const statusEl = document.querySelector("#status");
+    const submitBtn = document.querySelector("#submit");
+    const nameInput = document.querySelector("#name");
+    const tempInput = document.querySelector("#temp");
+    const locationSelect = document.querySelector("#location");
+
+    function setHint(fieldName, message) {
+      const hintEl = document.querySelector('[data-hint-for="' + fieldName + '"]');
+      const inputEl = document.querySelector("#" + fieldName);
+      if (message) {
+        hintEl.textContent = message;
+        hintEl.classList.add("error");
+        inputEl.classList.add("invalid");
+      } else {
+        hintEl.textContent = "";
+        hintEl.classList.remove("error");
+        inputEl.classList.remove("invalid");
+      }
+    }
+
+    const handleSubmit = (event) => {
+      event.preventDefault();
+      const name = nameInput.value.trim();
+      const tempRaw = tempInput.value.trim();
+      const coughEl = document.querySelector('input[name="cough"]:checked');
+      const location = locationSelect.value;
+
+      let valid = true;
+      if (!name) {
+        setHint("name", "姓名不能为空");
+        valid = false;
+      } else {
+        setHint("name", "");
+      }
+
+      const temp = Number(tempRaw);
+      if (!tempRaw) {
+        setHint("temp", "体温不能为空");
+        valid = false;
+      } else if (!Number.isFinite(temp) || temp < 35 || temp > 42) {
+        setHint("temp", "体温需在 35~42℃ 之间");
+        valid = false;
+      } else {
+        setHint("temp", "");
+      }
+
+      if (!coughEl) {
+        setHint("cough", "请选择有无咳嗽");
+        valid = false;
+      } else {
+        setHint("cough", "");
+      }
+
+      if (!location) {
+        setHint("location", "请选择行程地点");
+        valid = false;
+      } else {
+        setHint("location", "");
+      }
+
+      if (!valid) return;
+
+      const sent = submitToAgent({
+        kind: "health.checkin.submit",
+        data: {
+          name: name,
+          temperature: temp,
+          cough: coughEl.value,
+          location: location,
+        },
+        metadata: { source: "team-health-card" },
+      });
+      if (!sent) {
+        statusEl.textContent = "提交内容无效，请检查后重试";
+        return;
+      }
+      submitBtn.disabled = true;
+      nameInput.disabled = true;
+      tempInput.disabled = true;
+      document.querySelectorAll('input[name="cough"]').forEach((el) => (el.disabled = true));
+      locationSelect.disabled = true;
+      statusEl.textContent = "已提交，请返回等待结果…";
+      statusEl.classList.add("ok");
+    };
+
+    form.addEventListener("submit", handleSubmit);
+    submitBtn.addEventListener("click", handleSubmit);
+
+    [nameInput, tempInput, locationSelect].forEach((el) => {
+      el.addEventListener("input", () => setHint(el.id, ""));
+    });
+    document.querySelectorAll('input[name="cough"]').forEach((el) => {
+      el.addEventListener("change", () => setHint("cough", ""));
+    });
+  </script>
+</body>
+</html>

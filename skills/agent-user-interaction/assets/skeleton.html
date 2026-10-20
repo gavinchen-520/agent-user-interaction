@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>正在生成交互页面</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --surface: #ffffff;
+        --text: #1a2337;
+        --muted: #6b7688;
+        --border: #e4ebf5;
+        --accent: #2563eb;
+        --accent-soft: #dbe7ff;
+        --sk-base: #e9eff8;
+        --sk-shine: rgba(255, 255, 255, 0.9);
+        --shadow: 0 1px 2px rgba(23, 32, 51, 0.04), 0 24px 48px -20px rgba(23, 32, 51, 0.22);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+
+      body {
+        margin: 0;
+        position: relative;
+        background:
+          radial-gradient(46rem 30rem at 50% -8%, rgba(37, 99, 235, 0.12), transparent 68%),
+          linear-gradient(165deg, #fbfdff 0%, #f0f5fc 58%, #e9f0fa 100%);
+        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.75rem;
+        overflow: hidden;
+      }
+
+      .stage {
+        position: relative;
+        width: 100%;
+        max-width: 32rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+        padding: 1.75rem 1.75rem 2rem;
+      }
+
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .ring {
+        position: relative;
+        width: 22px;
+        height: 22px;
+        flex: none;
+        border-radius: 50%;
+        background: conic-gradient(from 90deg, transparent 0%, var(--accent) 100%);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .status-text {
+        display: flex;
+        align-items: baseline;
+        gap: 0.45rem;
+        font-size: 1rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+      .status-text small {
+        font-weight: 400;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .dots { display: inline-flex; gap: 3px; transform: translateY(-1px); }
+      .dots i {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      .dots i:nth-child(2) { animation-delay: 0.15s; }
+      .dots i:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.25; transform: translateY(0); }
+        45% { opacity: 1; transform: translateY(-3px); }
+      }
+
+      .preview { display: grid; gap: 0.95rem; }
+
+      .sk {
+        position: relative;
+        overflow: hidden;
+        background: var(--sk-base);
+        border-radius: 9px;
+      }
+      .sk::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, var(--sk-shine), transparent);
+        animation: shimmer 1.7s ease-in-out infinite;
+      }
+      @keyframes shimmer { 100% { transform: translateX(100%); } }
+
+      .sk-title { width: 46%; height: 17px; }
+      .sk-line { height: 11px; }
+      .sk-line.short { width: 68%; }
+
+      .sk-block {
+        height: 112px;
+        border-radius: 14px;
+        display: grid;
+        align-content: center;
+        gap: 0.65rem;
+        padding: 0 1.25rem;
+        background: var(--accent-soft);
+      }
+      .sk-block .sk { background: rgba(255, 255, 255, 0.72); }
+      .sk-block .sk::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent); }
+
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+      .sk-chip { height: 40px; border-radius: 11px; }
+      .sk-cta {
+        height: 50px;
+        border-radius: 13px;
+        background: linear-gradient(90deg, #c9dbfb, #dbe7ff);
+      }
+      .sk-cta::after { animation-duration: 2.1s; }
+
+      .foot {
+        margin-top: 1.5rem;
+        text-align: center;
+        font-size: 0.82rem;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .ring { animation-duration: 2.6s; }
+        .dots i { animation: none; opacity: 0.6; }
+        .sk::after { animation: none; opacity: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="stage" role="status" aria-live="polite">
+      <div class="status">
+        <span class="ring" aria-hidden="true"></span>
+        <span class="status-text">
+          正在生成交互页面
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <small>请稍候</small>
+        </span>
+      </div>
+
+      <div class="preview" aria-hidden="true">
+        <div class="sk sk-title"></div>
+        <div class="sk sk-line"></div>
+        <div class="sk sk-line short"></div>
+        <div class="sk-block">
+          <div class="sk sk-line"></div>
+          <div class="sk sk-line short"></div>
+        </div>
+        <div class="row">
+          <div class="sk sk-chip"></div>
+          <div class="sk sk-chip"></div>
+        </div>
+        <div class="sk sk-cta"></div>
+      </div>
+
+      <p class="foot">页面完成后会自动加载，无需手动刷新。</p>
+    </main>
+  </body>
+</html>

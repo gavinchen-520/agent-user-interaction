@@ -24,17 +24,12 @@
   },
   "overrides": [
     {
-      "includes": ["skills/html-interaction/assets/submit-bridge.js"],
+      "includes": ["tests/fixtures/**"],
       "linter": {
-        "rules": {
-          "correctness": {
-            "noInnerDeclarations": "off"
-          },
-          "suspicious": {
-            "noRedundantUseStrict": "off",
-            "noPrototypeBuiltins": "off"
-          }
-        }
+        "enabled": false
+      },
+      "formatter": {
+        "enabled": false
       }
     }
   ]

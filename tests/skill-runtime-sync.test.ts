@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const sourceDir = join(import.meta.dir, "../skills/html-interaction");
-const runtimeDir = join(import.meta.dir, "../.opencode/skills/html-interaction");
+const sourceDir = join(import.meta.dir, "../skills/agent-user-interaction");
+const runtimeDir = join(import.meta.dir, "../.opencode/skills/agent-user-interaction");
 
 // 递归收集相对路径 → 文件内容的清单
 const collectFiles = (root: string, current = ""): Map<string, Buffer> => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
   createSubmissionEnvelope,
   parseSubmission,
-} from "../../opencode-plugin/src/runtime/protocol";
+} from "../../opencode-v1-aui/src/runtime/protocol";
 
 describe("提交协议", () => {
   const validEnvelope = {

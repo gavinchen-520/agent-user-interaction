@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    { "package": "./opencode-v2-plugin", "options": {} }
+    { "package": "./opencode-v2-aui", "options": {} }
   ]
 }

@@ -1,12 +1,34 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { createHtmlRuntime } from "../../opencode-plugin/src/runtime";
-import { createRuntimeServer } from "../../opencode-plugin/src/runtime/server";
+import { createHtmlRuntime } from "../../opencode-v1-aui/src/runtime";
+import {
+  createRuntimeServer,
+  readRequestBodyWithLimit,
+} from "../../opencode-v1-aui/src/runtime/server";
 
 describe("安全 HTML runtime server", () => {
   const servers: Array<{ stop(force?: boolean): Promise<void> }> = [];
 
   afterEach(async () => {
     await Promise.all(servers.splice(0).map((server) => server.stop(true)));
+  });
+
+  it("在没有 Content-Length 的请求体流超限时提前终止", async () => {
+    const request = new Request("http://localhost/submit", {
+      method: "POST",
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("12345"));
+          controller.enqueue(new TextEncoder().encode("67890"));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+
+    await expect(readRequestBodyWithLimit(request, 8)).rejects.toMatchObject({
+      code: "PAYLOAD_TOO_LARGE",
+      status: 413,
+    });
   });
 
   it("提供 wrapper、当前页面和受保护提交 endpoint", async () => {
@@ -30,6 +52,7 @@ describe("安全 HTML runtime server", () => {
     expect(pageText).toBe("<h1>safe</h1>");
     expect(pageText).not.toContain(runtime.getSession(created.sessionId)?.token ?? "");
     expect(page.headers.get("content-security-policy")).toContain("connect-src 'none'");
+    expect(page.headers.get("content-security-policy")).toContain("navigate-to 'none'");
     expect(page.headers.get("content-security-policy")).toContain("script-src 'unsafe-inline'");
 
     const waiting = runtime.waitSubmission({ sessionId: created.sessionId, timeoutMs: 500 });
@@ -69,6 +92,33 @@ describe("安全 HTML runtime server", () => {
     const parsedUrl = new URL(created.url);
     expect(parsedUrl.port).toBe(new URL(server.url).port);
     expect((await fetch(created.url)).status).toBe(200);
+  });
+
+  it("提供版本查询 endpoint，供 wrapper 自动刷新", async () => {
+    const runtime = createHtmlRuntime();
+    const created = await runtime.createSession({ html: "<p>v1</p>" });
+    const server = await createRuntimeServer(runtime, { openBrowser: false });
+    servers.push(server);
+    const versionUrl = `${server.url}/session/${created.sessionId}/version`;
+
+    const first = await fetch(versionUrl);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ pageVersion: 1, pageId: created.pageId });
+
+    const updated = await runtime.updateSession({
+      sessionId: created.sessionId,
+      html: "<p>v2</p>",
+    });
+    const second = await fetch(versionUrl);
+    expect(await second.json()).toEqual({
+      pageVersion: updated.pageVersion,
+      pageId: updated.pageId,
+    });
+
+    await expect(fetch(versionUrl, { method: "POST" })).resolves.toMatchObject({ status: 405 });
+    await expect(fetch(`${server.url}/session/unknown/version`)).resolves.toMatchObject({
+      status: 404,
+    });
   });
 
   it("拒绝缺少 token、错误 JSON、旧页面和超大 body", async () => {
@@ -176,13 +226,14 @@ describe("安全 HTML runtime server", () => {
         body: JSON.stringify(envelope),
       }),
     ).resolves.toMatchObject({ status: 403, body: { code: "INVALID_AUTHORITY" } });
+    // Origin 不再参与校验（访问控制由 x-runtime-token 承担），跨 Origin 请求可正常提交
     await expect(
       getError(endpoint, {
         method: "POST",
         headers: { ...validHeaders, origin: "http://localhost:1234" },
         body: JSON.stringify(envelope),
       }),
-    ).resolves.toMatchObject({ status: 403, body: { code: "INVALID_AUTHORITY" } });
+    ).resolves.toMatchObject({ status: 200, body: { ok: true } });
     await expect(getError(`${server.url}/session/unknown/page`)).resolves.toMatchObject({
       status: 404,
       body: { code: "SESSION_NOT_FOUND" },

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>错误示例：依赖原生表单提交</title>
+</head>
+<body>
+  <form id="form" novalidate>
+    <input id="value" type="text" name="value">
+    <button id="submit" type="submit">提交</button>
+  </form>
+  <output id="status" aria-live="polite"></output>
+
+  <script>
+    function submitToAgent(payload) {
+      window.parent.postMessage({ type: "html-submit", payload: payload }, "*");
+      return true;
+    }
+
+    const form = document.querySelector("#form");
+    const submitBtn = document.querySelector("#submit");
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const sent = submitToAgent({
+        kind: "smoke.native-form",
+        data: { value: document.querySelector("#value").value },
+        metadata: {},
+      });
+      if (!sent) return;
+      submitBtn.disabled = true;
+      document.querySelector("#status").textContent = "已提交";
+    });
+  </script>
+</body>
+</html>

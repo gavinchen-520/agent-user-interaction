@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>选择部署环境</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --primary: #38bdf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .container {
+      width: 100%;
+      max-width: 640px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 32px;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+    .env-list { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 32px; }
+    .env-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      font: inherit;
+    }
+    .env-card:hover { border-color: var(--primary); }
+    .env-card.selected { border-color: var(--primary); background: rgba(56, 189, 248, 0.08); }
+    .env-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .env-icon.staging { background: rgba(250, 204, 21, 0.15); color: #facc15; }
+    .env-icon.production { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+    .env-name { font-size: 16px; font-weight: 600; }
+    .env-desc { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .radio { margin-left: auto; width: 20px; height: 20px; flex-shrink: 0; }
+    .submit-btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: var(--primary);
+      color: #0f172a;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .submit-btn:hover { opacity: 0.9; }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status { margin-top: 16px; font-size: 14px; color: var(--muted); text-align: center; min-height: 20px; }
+    .status.ok { color: #4ade80; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>选择部署环境</h1>
+    <p class="subtitle">请选择本次部署的目标环境，确认后提交。</p>
+    <div class="env-list" id="envList">
+      <button type="button" class="env-card" data-env="staging">
+        <span class="env-icon staging">S</span>
+        <span>
+          <span class="env-name">Staging（预发布）</span>
+          <span class="env-desc">预发布环境，用于上线前验证与联调</span>
+        </span>
+        <input class="radio" type="radio" name="env" value="staging" aria-label="staging">
+      </button>
+      <button type="button" class="env-card" data-env="production">
+        <span class="env-icon production">P</span>
+        <span>
+          <span class="env-name">Production（生产）</span>
+          <span class="env-desc">生产环境，正式对外提供服务</span>
+        </span>
+        <input class="radio" type="radio" name="env" value="production" aria-label="production">
+      </button>
+    </div>
+    <button id="submit" class="submit-btn" type="button" disabled>确认部署</button>
+    <output id="status" class="status" aria-live="polite"></output>
+  </main>
+
+  <script>
+    (function exposeSubmitBridge(globalWindow) {
+      "use strict";
+
+      var maxPayloadBytes = 64 * 1024;
+
+      function isJsonCompatible(value, seen) {
+        if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+        if (typeof value === "number") return Number.isFinite(value);
+        if (typeof value !== "object") return false;
+        if (seen.has(value)) return false;
+        seen.add(value);
+        if (Array.isArray(value)) {
+          for (var index = 0; index < value.length; index += 1) {
+            if (!isJsonCompatible(value[index], seen)) return false;
+          }
+        } else {
+          for (var key in value) {
+            if (Object.prototype.hasOwnProperty.call(value, key) && !isJsonCompatible(value[key], seen)) return false;
+          }
+        }
+        seen.delete(value);
+        return true;
+      }
+
+      function submitToAgent(payload) {
+        if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return false;
+        if (typeof payload.kind !== "string" || payload.kind.trim() === "") return false;
+        if (!isJsonCompatible(payload.data, new WeakSet()) || !isJsonCompatible(payload.metadata, new WeakSet())) return false;
+        var message = { type: "html-submit", payload: { kind: payload.kind, data: payload.data, metadata: payload.metadata } };
+        var serialized;
+        try {
+          serialized = JSON.stringify(message);
+        } catch (_error) {
+          return false;
+        }
+        if (new TextEncoder().encode(serialized).length > maxPayloadBytes) return false;
+        window.parent.postMessage(message, "*");
+        return true;
+      }
+
+      globalWindow.submitToAgent = submitToAgent;
+    })(window);
+
+    const statusEl = document.querySelector("#status");
+    const submitBtn = document.querySelector("#submit");
+    const envCards = document.querySelectorAll(".env-card");
+    let selectedEnv = null;
+
+    envCards.forEach((card) => {
+      card.addEventListener("click", () => {
+        envCards.forEach((c) => c.classList.remove("selected"));
+        card.classList.add("selected");
+        const radio = card.querySelector("input[type=radio]");
+        radio.checked = true;
+        selectedEnv = radio.value;
+        submitBtn.disabled = false;
+        statusEl.textContent = "";
+        statusEl.classList.remove("ok");
+      });
+    });
+
+    submitBtn.addEventListener("click", () => {
+      if (!selectedEnv) {
+        statusEl.textContent = "请先选择一个环境";
+        return;
+      }
+      const sent = submitToAgent({
+        kind: "deploy.env.select",
+        data: { environment: selectedEnv },
+        metadata: { source: "deploy-env-page" },
+      });
+      if (!sent) {
+        statusEl.textContent = "提交内容无效，请检查后重试";
+        return;
+      }
+      submitBtn.disabled = true;
+      statusEl.textContent = "已提交，请返回等待结果…";
+      statusEl.classList.add("ok");
+    });
+  </script>
+</body>
+</html>

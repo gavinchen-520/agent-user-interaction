@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { PluginInput } from "@opencode-ai/plugin";
 import type { ToolContext } from "@opencode-ai/plugin/tool";
 
-import { createHtmlInteractionPlugin } from "../opencode-plugin/src";
+import { createHtmlInteractionPlugin } from "../opencode-v1-aui/src";
 
 const createPluginInput = (): PluginInput => ({
   client: {} as PluginInput["client"],

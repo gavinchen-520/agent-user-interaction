@@ -1,8 +1,17 @@
 import { describe, expect, it } from "bun:test";
 
-import { createHtmlRuntime } from "../../opencode-plugin/src/runtime";
+import { createHtmlRuntime } from "../../opencode-v1-aui/src/runtime";
 
 describe("HTML session runtime", () => {
+  it("memory 模式按 TTL 主动清理 session", async () => {
+    const runtime = createHtmlRuntime({ sessionTtlMs: 5, cleanupIntervalMs: 10 });
+    const created = await runtime.createSession({ html: "<p>expire</p>" });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(runtime.getSession(created.sessionId)).toBeUndefined();
+    expect(runtime.countLiveSessions()).toBe(0);
+    runtime.dispose();
+  });
+
   it("创建页面为版本 1，更新生成版本 2 和新 pageId", async () => {
     const runtime = createHtmlRuntime();
     const created = await runtime.createSession({ html: "<h1>one</h1>" });

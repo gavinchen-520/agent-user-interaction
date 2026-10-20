@@ -1,20 +1,21 @@
 {
-  "name": "agent-ui-interaction",
+  "name": "agent-user-interaction",
   "private": true,
   "license": "MIT",
   "packageManager": "bun@1.3.14",
   "workspaces": [
-    "opencode-plugin",
-    "opencode-v2-plugin"
+    "opencode-v1-aui",
+    "opencode-v2-aui"
   ],
   "scripts": {
     "test": "bun test --path-ignore-patterns \"tests/e2e/**\"",
     "test:e2e": "bunx playwright test",
-    "test:v2": "bun run --cwd opencode-v2-plugin test",
-    "typecheck": "bun run --cwd opencode-plugin typecheck",
-    "typecheck:v2": "bun run --cwd opencode-v2-plugin typecheck",
-    "build": "bun run --cwd opencode-plugin build",
+    "test:v2": "bun run --cwd opencode-v2-aui test",
+    "typecheck": "bun run --cwd opencode-v1-aui typecheck",
+    "typecheck:v2": "bun run --cwd opencode-v2-aui typecheck",
+    "build": "bun run --cwd opencode-v1-aui build",
     "format": "biome format --write .",
+    "screenshots": "bun run scripts/screenshots/capture.ts && bun run scripts/screenshots/hero.ts",
     "check": "bun run typecheck && bun run typecheck:v2 && biome check . && bun run test && bun run test:v2"
   },
   "devDependencies": {

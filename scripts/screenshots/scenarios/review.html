@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>代码评审</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --page-bg: #f4f7fb;
+        --surface: #ffffff;
+        --text: #16202f;
+        --muted: #5d6b80;
+        --border: #dde5ef;
+        --accent: #2563eb;
+        --accent-soft: #eef4ff;
+        --ok: #147a4d;
+        --ok-soft: #e9f7ef;
+        --danger: #b3261e;
+        --danger-soft: #fdecea;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        padding: 3rem 1.5rem;
+        background:
+          radial-gradient(48rem 26rem at 50% -12%, rgba(37, 99, 235, 0.1), transparent 70%),
+          var(--page-bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        line-height: 1.55;
+      }
+
+      main {
+        width: 100%;
+        max-width: 46rem;
+        margin: 0 auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: 0 1px 2px rgba(20, 34, 54, 0.04), 0 28px 56px -32px rgba(20, 34, 54, 0.3);
+        padding: 2rem 2.25rem 2.25rem;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-bottom: 0.9rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #1d4ed8;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      h1 {
+        margin: 0 0 0.35rem;
+        font-size: 1.5rem;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+      }
+
+      .meta {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .meta code {
+        padding: 0.1rem 0.35rem;
+        border-radius: 5px;
+        background: #f1f5f9;
+        font-size: 0.82rem;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .stat {
+        padding: 0.8rem 0.9rem;
+        border: 1px solid var(--border);
+        border-radius: 11px;
+        background: #fbfdff;
+      }
+
+      .stat b { display: block; font-size: 1.15rem; line-height: 1.2; }
+      .stat span { color: var(--muted); font-size: 0.78rem; }
+      .stat .add { color: var(--ok); }
+      .stat .del { color: var(--danger); }
+
+      h2 {
+        margin: 0 0 0.75rem;
+        font-size: 0.95rem;
+        letter-spacing: 0.01em;
+      }
+
+      .diff {
+        margin: 0 0 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: 11px;
+        overflow: hidden;
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+        font-size: 0.8rem;
+        line-height: 1.7;
+      }
+
+      .diff-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.55rem 0.9rem;
+        background: #f6f9fc;
+        border-bottom: 1px solid var(--border);
+        color: var(--muted);
+        font-family: system-ui, sans-serif;
+        font-size: 0.78rem;
+      }
+
+      .diff pre { margin: 0; padding: 0.7rem 0; overflow-x: auto; }
+
+      .diff .line { display: block; padding: 0 0.9rem; white-space: pre; }
+      .diff .add { background: var(--ok-soft); color: #0f5f3d; }
+      .diff .del { background: var(--danger-soft); color: #8c1d18; }
+      .diff .ctx { color: #4a5871; }
+
+      .comment {
+        display: grid;
+        gap: 0.4rem;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 5.2rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+        font-size: 0.88rem;
+        resize: vertical;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+      }
+
+      .hint { color: var(--muted); font-size: 0.76rem; }
+
+      .error {
+        display: none;
+        color: var(--danger);
+        font-size: 0.78rem;
+      }
+
+      .error.show { display: block; }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 1.6rem;
+        padding-top: 1.3rem;
+        border-top: 1px solid var(--border);
+      }
+
+      #status { color: var(--muted); font-size: 0.85rem; }
+      #status.bad { color: var(--danger); }
+
+      .buttons { display: flex; gap: 0.6rem; }
+
+      button {
+        font: inherit;
+        border-radius: 10px;
+        padding: 0.68rem 1.15rem;
+        cursor: pointer;
+        border: 1px solid transparent;
+        font-weight: 600;
+      }
+
+      .reject {
+        background: #fff;
+        border-color: #e6c3bf;
+        color: var(--danger);
+      }
+
+      .approve {
+        background: var(--accent);
+        color: #fff;
+        box-shadow: 0 8px 18px -10px rgba(37, 99, 235, 0.9);
+      }
+
+      .approve:hover { background: #1d4ed8; }
+
+      @media (max-width: 34rem) {
+        body { padding: 1.25rem 0.9rem; }
+        main { padding: 1.4rem 1.15rem 1.6rem; border-radius: 14px; }
+        .summary { grid-template-columns: 1fr; }
+        .actions { flex-direction: column-reverse; align-items: stretch; }
+        .buttons { flex-direction: column-reverse; }
+        .buttons button { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="eyebrow">pull request · #2481</span>
+      <h1>为会话存储增加 TTL 与磁盘回收</h1>
+      <p class="meta">
+        <code>feat/session-ttl</code> → <code>main</code> · 3 个提交 · 2 位评审人已通过
+      </p>
+
+      <div class="summary">
+        <div class="stat"><b class="add">+186</b><span>新增行</span></div>
+        <div class="stat"><b class="del">−24</b><span>删除行</span></div>
+        <div class="stat"><b>4</b><span>变更文件</span></div>
+      </div>
+
+      <h2>关键变更</h2>
+      <div class="diff">
+        <div class="diff-header">
+          <span>src/runtime/store.ts</span>
+          <span>+18 −3</span>
+        </div>
+        <pre><span class="line ctx">  const session = sessions.get(sessionId);</span><span class="line ctx">  if (!session) throw notFound(sessionId);</span><span class="line del">- // 仅在进程内回收</span><span class="line del">- sessions.delete(sessionId);</span><span class="line add">+ await metaStore.remove(sessionId);</span><span class="line add">+ await pageStore.removeSession(sessionId);</span><span class="line add">+ sessions.delete(sessionId);</span><span class="line add">+ // TTL 过期与显式结束走同一条回收路径</span><span class="line ctx">  return { ok: true };</span></pre>
+      </div>
+
+      <div class="comment">
+        <h2>评审意见</h2>
+        <label class="hint" for="note">驳回时必须填写原因；批准可留空。</label>
+        <textarea id="note" placeholder="例如：磁盘回收缺少失败重试，进程崩溃时可能留下孤儿目录。"></textarea>
+        <div class="error" id="note-error">驳回时必须填写原因</div>
+      </div>
+
+      <div class="actions">
+        <output id="status" aria-live="polite"></output>
+        <div class="buttons">
+          <button class="reject" id="reject" type="button">驳回</button>
+          <button class="approve" id="approve" type="button">批准并合并</button>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const approve = document.querySelector("#approve");
+      const reject = document.querySelector("#reject");
+      const note = document.querySelector("#note");
+      const noteError = document.querySelector("#note-error");
+      const status = document.querySelector("#status");
+
+      const submit = (decision) => {
+        if (decision === "reject" && note.value.trim() === "") {
+          noteError.classList.add("show");
+          note.focus();
+          status.textContent = "请先填写驳回原因";
+          status.classList.add("bad");
+          return;
+        }
+        const sent = submitToAgent({
+          kind: "review-decision",
+          data: { pullRequest: 2481, decision, comment: note.value.trim() || null },
+          metadata: { source: "review" },
+        });
+        if (!sent) {
+          status.textContent = "提交内容无效，请检查后重试";
+          status.classList.add("bad");
+          return;
+        }
+        approve.disabled = true;
+        reject.disabled = true;
+        status.classList.remove("bad");
+        status.textContent = decision === "approve" ? "已批准" : "已驳回";
+      };
+
+      approve.addEventListener("click", () => submit("approve"));
+      reject.addEventListener("click", () => submit("reject"));
+    </script>
+  </body>
+</html>

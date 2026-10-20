@@ -1,5 +1,7 @@
 # Agent UI Interaction Implementation Plan
 
+> 状态：Superseded。历史实施记录；当前约束以最新开源加固设计和实施计划为准。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 为 OpenCode + octto 提供一个 skill-first 的动态 HTML 交互闭环：模型生成页面，用户在独立浏览器窗口中交互并提交结构化数据，模型收到 tool result 后继续任务并可更新页面。

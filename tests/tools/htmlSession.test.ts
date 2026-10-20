@@ -1,8 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { createHtmlRuntime } from "../../opencode-plugin/src/runtime";
-import type { HtmlSessionToolOptions } from "../../opencode-plugin/src/tools";
-import { createHtmlSessionTools } from "../../opencode-plugin/src/tools";
+import { createHtmlRuntime } from "../../opencode-v1-aui/src/runtime";
+import type { HtmlSessionToolOptions } from "../../opencode-v1-aui/src/tools";
+import { createHtmlSessionTools } from "../../opencode-v1-aui/src/tools";
 
 const toolContext = {
   sessionID: "opencode-session",
@@ -19,12 +22,12 @@ const executeTool = async (
   name: string,
   args: Record<string, unknown>,
   runtime = createHtmlRuntime(),
-  toolOptions: HtmlSessionToolOptions = { openBrowser: false },
+  toolOptions: HtmlSessionToolOptions = {},
+  context = toolContext,
 ) => {
-  const result = await createHtmlSessionTools(runtime, undefined, toolOptions)[name]?.execute(
-    args,
-    toolContext,
-  );
+  // 默认不打开浏览器，避免真实等待拖慢测试
+  const merged: HtmlSessionToolOptions = { openBrowser: false, ...toolOptions };
+  const result = await createHtmlSessionTools(runtime, merged)[name]?.execute(args, context);
   if (typeof result !== "string") throw new Error(`工具 ${name} 未返回 JSON 文本`);
   return { output: JSON.parse(result) as unknown, runtime };
 };
@@ -44,6 +47,33 @@ describe("HTML session OpenCode 工具", () => {
     await expect(
       executeTool("create_html_session", { html: "x".repeat(64 * 1024 + 1) }),
     ).rejects.toThrow();
+  });
+
+  it("内联 HTML 超限返回 HTML_TOO_LARGE_FOR_INLINE 并提示回退 htmlFile", async () => {
+    await expect(
+      executeTool("create_html_session", { html: "x".repeat(101) }, createHtmlRuntime(), {
+        maxInlineHtmlBytes: 100,
+      }),
+    ).rejects.toThrow(expect.objectContaining({ code: "HTML_TOO_LARGE_FOR_INLINE", status: 413 }));
+  });
+
+  it("含 type=submit 的 HTML 被静态门禁拒绝", async () => {
+    await expect(
+      executeTool("create_html_session", { html: '<button type="submit">提交</button>' }),
+    ).rejects.toThrow(expect.objectContaining({ code: "INVALID_HTML", status: 400 }));
+  });
+
+  it("update_html_session 同样执行静态门禁", async () => {
+    const runtime = createHtmlRuntime();
+    const { output } = await executeTool("create_html_session", { html: "<p>ok</p>" }, runtime);
+    if (!isCreateOutput(output)) throw new Error("创建工具输出不符合预期");
+    await expect(
+      executeTool(
+        "update_html_session",
+        { sessionId: output.sessionId, html: "<script>localStorage</script>" },
+        runtime,
+      ),
+    ).rejects.toThrow(expect.objectContaining({ code: "INVALID_HTML" }));
   });
 
   it("拒绝未知 session", async () => {
@@ -157,6 +187,46 @@ describe("HTML session OpenCode 工具", () => {
     );
     expect(runtime.countLiveSessions()).toBe(0);
     expect(runtime.countWaiters()).toBe(0);
+  });
+
+  it("相对 htmlFile 按工具 workspace 目录解析", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "html-workspace-"));
+    writeFileSync(join(directory, "page.html"), "<h1>workspace</h1>");
+    try {
+      const runtime = createHtmlRuntime();
+      const { output } = await executeTool(
+        "create_html_session",
+        { htmlFile: "page.html" },
+        runtime,
+        {},
+        { ...toolContext, directory, worktree: directory },
+      );
+      if (!isCreateOutput(output)) throw new Error("创建工具输出不符合预期");
+      expect(runtime.getSession(output.sessionId)?.html).toContain("workspace");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("引用 submitToAgent 的页面注入运行时后落库", async () => {
+    const runtime = createHtmlRuntime();
+    const modelHtml =
+      '<html><head></head><body><button type="button" id="submit">提交</button><script>submitToAgent({ kind: "k", data: {}, metadata: {} });</script></body></html>';
+    const { output } = await executeTool("create_html_session", { html: modelHtml }, runtime);
+    if (!isCreateOutput(output)) throw new Error("创建工具输出不符合预期");
+
+    const stored = runtime.getSession(output.sessionId)?.html ?? "";
+    expect(stored).toContain("data-agent-ui-bridge");
+    expect(stored).toContain("function submitToAgent");
+    expect(stored.length).toBeGreaterThan(modelHtml.length);
+  });
+
+  it("不含 submitToAgent 的页面不做注入（骨架页等）", async () => {
+    const runtime = createHtmlRuntime();
+    const plain = "<html><head></head><body><p>hi</p></body></html>";
+    const { output } = await executeTool("create_html_session", { html: plain }, runtime);
+    if (!isCreateOutput(output)) throw new Error("创建工具输出不符合预期");
+    expect(runtime.getSession(output.sessionId)?.html).toBe(plain);
   });
 });
 

@@ -1,8 +1,9 @@
 // Bun 子进程宿主：通过 stdin/stdout 的 JSON 行协议驱动 HTML runtime，
 // 供 Playwright（Node worker 无法直接使用 Bun.serve）以串行方式控制真实 server。
 
-import { createHtmlRuntime } from "../../opencode-plugin/src/runtime";
-import { createRuntimeServer } from "../../opencode-plugin/src/runtime/server";
+import { createHtmlRuntime } from "../../opencode-v1-aui/src/runtime";
+import { createRuntimeServer } from "../../opencode-v1-aui/src/runtime/server";
+import { createHtmlSessionTools } from "../../opencode-v1-aui/src/tools";
 
 type HostCommand =
   | { type: "create"; html: string; title?: string }
@@ -17,18 +18,37 @@ const writeMessage = (message: Record<string, unknown>): void => {
 };
 
 const runtime = createHtmlRuntime();
-let server: Awaited<ReturnType<typeof createRuntimeServer>> | undefined;
+const server = await createRuntimeServer(runtime, { openBrowser: false });
+const tools = createHtmlSessionTools(runtime, { openBrowser: false, rootDirectory: process.cwd() });
+const toolContext = {
+  sessionID: "e2e-opencode-session",
+  messageID: "e2e-message",
+  agent: "e2e-agent",
+  directory: process.cwd(),
+  worktree: process.cwd(),
+  abort: new AbortController().signal,
+  metadata: () => {},
+  ask: async () => {},
+};
 
 const getActiveSessionId = (): string => runtime.listSessions()[0]?.sessionId ?? "";
 
 const handleCommand = async (command: HostCommand): Promise<void> => {
   switch (command.type) {
     case "create": {
-      const created = await runtime.createSession({ title: command.title, html: command.html });
-      server = await createRuntimeServer(runtime, { openBrowser: false });
+      const result = await tools.create_html_session.execute(
+        { title: command.title, html: command.html },
+        toolContext,
+      );
+      const created = JSON.parse(result as string) as {
+        sessionId: string;
+        pageId: string;
+        pageVersion: number;
+        url: string;
+      };
       writeMessage({
         type: "ready",
-        url: server.url,
+        url: created.url,
         sessionId: created.sessionId,
         pageId: created.pageId,
         pageVersion: created.pageVersion,
@@ -53,15 +73,22 @@ const handleCommand = async (command: HostCommand): Promise<void> => {
       return;
     }
     case "update": {
-      const updated = await runtime.updateSession({
-        sessionId: getActiveSessionId(),
-        html: command.html,
-      });
+      const updated = JSON.parse(
+        (await tools.update_html_session.execute(
+          { sessionId: getActiveSessionId(), html: command.html },
+          toolContext,
+        )) as string,
+      ) as { pageId: string; pageVersion: number };
       writeMessage({ type: "updated", ...updated });
       return;
     }
     case "end": {
-      const result = await runtime.endSession(getActiveSessionId());
+      const result = JSON.parse(
+        (await tools.end_html_session.execute(
+          { sessionId: getActiveSessionId() },
+          toolContext,
+        )) as string,
+      ) as { ok: boolean };
       writeMessage({ type: "ended", ...result });
       return;
     }
@@ -77,7 +104,7 @@ const handleCommand = async (command: HostCommand): Promise<void> => {
       for (const session of runtime.listSessions()) {
         await runtime.endSession(session.sessionId);
       }
-      await server?.stop(true);
+      await server.stop(true);
       process.exit(0);
     }
   }
