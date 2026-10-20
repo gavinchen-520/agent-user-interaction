@@ -244,7 +244,6 @@ bun run build        # 构建 V1 插件 dist
 - [页面示例](./skills/agent-user-interaction/references/examples.md)
 - [人工测试用例](./docs/manual-test-cases.md)
 - [场景提示词](./docs/scenario-test-prompts.md)
-- [磁盘存储与外部访问设计](./docs/disk-storage-and-external-access-design.md)
 
 ## 许可证
 

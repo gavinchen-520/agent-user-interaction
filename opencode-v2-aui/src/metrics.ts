@@ -1,7 +1,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
-// 服务端 TTFP 代理口径（docs/page-generation-performance-optimization.md §7.1 的收窄版）：
+// 服务端 TTFP 代理口径（收窄版）：
 // 以 host 的 session.execution.started 事件为每轮起点，create/update 工具成功返回时
 // 计算 durationMs 并追加一行 JSONL。它不需要新的浏览器跨窗口消息（那会触碰
 // SKILL.md:72 「跨窗口消息只能通过 submitToAgent」的协议边界），与真实首屏的
